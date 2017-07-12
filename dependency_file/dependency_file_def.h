@@ -43,6 +43,51 @@ struct Dependency_File {
 /// </param>
 void cbf_openEnter(CPUState *cpu, target_ulong pc, uint32_t fileAddr, int32_t
 		flags, int32_t mode);
+		
+/// <summary>
+/// Callback function for the syscalls2 "on_sys_read_enter_t" event.
+/// </summary>
+/// <param name="cpu">
+/// The CPU state pointer.
+/// </param>
+/// <param name="pc">
+/// The program counter.
+/// </param>
+/// <param name="fd">
+/// The file descriptor.
+/// </param>
+/// <param name="buffer">
+/// The virtual memory address of the read buffer.
+/// </param>
+/// <param name="count">
+/// The length of the read buffer.
+/// </param>
+void cbf_readEnter(CPUState *cpu, target_ulong pc, uint32_t fd, 
+		uint32_t buffer, uint32_t count);
+		
+/// <summary>
+/// Callback function for the syscalls2 "on_sys_pread64_enter_t" event.
+/// </summary>
+/// <param name="cpu">
+/// The CPU state pointer.
+/// </param>
+/// <param name="pc">
+/// The program counter.
+/// </param>
+/// <param name="fd">
+/// The file descriptor.
+/// </param>
+/// <param name="buffer">
+/// The virtual memory address of the read buffer.
+/// </param>
+/// <param name="count">
+/// The length of the read buffer.
+/// </param>
+/// <param name="pos">
+/// The position from which the file was read.
+/// </param>
+void cbf_pread64Enter(CPUState *cpu, target_ulong pc, uint32_t fd, 
+		uint32_t buffer, uint32_t count, uint64_t pos);
 
 extern "C" {
 	/// <summary>

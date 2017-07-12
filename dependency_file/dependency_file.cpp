@@ -15,6 +15,20 @@ void cbf_openEnter(CPUState *cpu, target_ulong pc, uint32_t fileAddr, int32_t
 	std::cout << "Detected File Opened, Name: " << fileName << std::endl;
 }
 
+void cbf_readEnter(CPUState *cpu, target_ulong pc, uint32_t fd, 
+		uint32_t buffer, uint32_t count) {
+	// Since read is just pread which starts at zero, call the callback 
+	// function for pread with zero as the starting position.
+	cbf_pread64Enter(cpu, pc, fd, buffer, count, 0);
+}
+
+void cbf_pread64Enter(CPUState *cpu, target_ulong pc, uint32_t fd, 
+		uint32_t buffer, uint32_t count, uint64_t pos) {
+	std::string bufferStr = getGuestString(cpu, count, buffer);
+	
+	std::cout << "Buffer Contents: " << bufferStr << std::endl;
+}
+
 bool init_plugin(void *self) {
 	dependency_file.plugin_ptr = self;
 	
@@ -42,6 +56,8 @@ bool init_plugin(void *self) {
 	
 	// Register SysCalls2 Callback Functions
 	PPP_REG_CB("syscalls2", on_sys_open_enter, cbf_openEnter);
+	PPP_REG_CB("syscalls2", on_sys_read_enter, cbf_readEnter);
+	PPP_REG_CB("syscalls2", on_sys_pread64_enter, cbf_pread64Enter);
 	
 	std::cout << "Initialized dependency_file plugin" << std::endl;
 	return true;
