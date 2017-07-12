@@ -4,11 +4,12 @@
 #include "dependency_file.h"
 
 bool init_plugin(void *self) {
-	printf("Hello World from Dependency_File Plugin.");
+	plugin_ptr = self;
+	printf("Hello World from Dependency_File Plugin.\n");
 
 	return true;
 }
 
 void uninit_plugin(void *self) {
-	printf("Goodbye World from Dependency_File Plugin.");
+	printf("Goodbye World from Dependency_File Plugin.\n");
 }
