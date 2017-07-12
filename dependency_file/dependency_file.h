@@ -1,7 +1,13 @@
 #ifndef DEPENDENCY_FILE_H
 #define DEPENDENCY_FILE_H
 
-void *plugin_ptr = NULL;                   // The plugin pointer
+struct Dependency_File {
+	void *plugin_ptr = NULL;           // The plugin pointer
+
+	std::string sourceFile = "";       // The source file name (Independent)
+	std::string sinkFile = "";         // The sink file name (Dependent)
+	bool debug = false;                // Print debug information?
+};
 
 extern "C" {
 	/// <summary>
