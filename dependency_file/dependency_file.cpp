@@ -1,15 +1,29 @@
+#include "dependency_file_def.h"
+
 #include <iostream>
 
-#include "panda/plugin.h"
-#include "panda/plugin_plugin.h"
-
-#include "dependency_file.h"
+#include "utils.h"
 
 Dependency_File dependency_file;
 
+void cbf_openEnter(CPUState *cpu, target_ulong pc, uint32_t fileAddr, int32_t
+		flags, int32_t mode) {
+	// Get the file name from memory (256 is used for the maximum length since
+	// the maximum length of a linux file is 255, plus one for \0).
+	std::string fileName = getGuestString(cpu, 256, fileAddr);
+	
+	std::cout << "Detected File Opened, Name: " << fileName << std::endl;
+}
+
 bool init_plugin(void *self) {
-	std::cout << "Initiailizing dependency_file plugin" << std::endl;
 	dependency_file.plugin_ptr = self;
+	
+	// Load dependent plugins
+	panda_require("osi");
+	panda_require("syscalls2");
+	panda_require("osi_linux");
+	assert(init_osi_api);
+	assert(init_osi_linux_api);
 	
 	// Parse Arguments:
 	// "source" : The source file name, defaults to "source.txt"
@@ -22,10 +36,12 @@ bool init_plugin(void *self) {
 		"sink.txt", "sink file name");
 	dependency_file.debug = panda_parse_bool_opt(args, "debug",
 		"debug mode");
-
 	std::cout << "Source File: " << dependency_file.sourceFile << std::endl;
 	std::cout << "Sink File: " << dependency_file.sinkFile << std::endl;
 	std::cout << "Debug: " << dependency_file.debug << std::endl;
+	
+	// Register SysCalls2 Callback Functions
+	PPP_REG_CB("syscalls2", on_sys_open_enter, cbf_openEnter);
 	
 	std::cout << "Initialized dependency_file plugin" << std::endl;
 	return true;
