@@ -105,6 +105,27 @@ void cbf_openEnter(CPUState *cpu, target_ulong pc, uint32_t fileAddr, int32_t
 /// </param>
 void cbf_readEnter(CPUState *cpu, target_ulong pc, uint32_t fd, 
 		uint32_t buffer, uint32_t count);
+		
+/// <summary>
+/// Callback function for the syscals2 "on_sys_write_enter_t" event.
+/// </summary>
+/// <param name="cpu">
+/// The CPU state pointer.
+/// </param>
+/// <param name="pc">
+/// The program counter.
+/// </param>
+/// <param name="fd">
+/// The file descriptor.
+/// </param>
+/// <param name="buffer">
+/// The virtual memory address of the write buffer.
+/// </param>
+/// <param name="count">
+/// The length of the write buffer.
+/// </param>
+void cbf_writeEnter(CPUState *cpu, target_ulong pc, uint32_t fd, 
+		uint32_t buffer, uint32_t count);
 
 extern "C" {
 	/// <summary>

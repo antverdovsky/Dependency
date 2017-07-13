@@ -25,10 +25,11 @@ void cbf_pread64Enter(CPUState *cpu, target_ulong pc, uint32_t fd,
 
 	// If any process has the ASID, we can use it to get the name of the file
 	// which this pread64_enter function is being called for.
-	std::cout << "ASID: " << asid << std::endl;
 	if (processesMap.count(asid) > 0) {
 		auto &process = processesMap[asid];
 
+		// Get the file name from osi_linux. If failed, print error and 
+		// continue with excecution.
 		char *fileNamePtr = osi_linux_fd_to_filename(cpu, &process, fd);
 		if (!fileNamePtr) { 
 			std::cerr << "osi_linux_fd_to_filename failed." << std::endl;
@@ -62,6 +63,35 @@ void cbf_readEnter(CPUState *cpu, target_ulong pc, uint32_t fd,
 	cbf_pread64Enter(cpu, pc, fd, buffer, count, 0);
 }
 
+void cbf_writeEnter(CPUState *cpu, target_ulong pc, uint32_t fd, 
+		uint32_t buffer, uint32_t count) {
+	// Get current ASID from PANDA
+	target_ulong asid = panda_current_asid(cpu);
+
+	// If any process has the ASID, we can use it to get the name of the file
+	// which this write_enter function is being called for.
+	if (processesMap.count(asid) > 0) {
+		auto &process = processesMap[asid];
+
+		// Get the file name from osi_linux. If failed, print error and 
+		// continue with excecution.
+		char *fileNamePtr = osi_linux_fd_to_filename(cpu, &process, fd);
+		if (!fileNamePtr) { 
+			std::cerr << "osi_linux_fd_to_filename failed." << std::endl;
+			return;
+		}
+
+		std::string fileName(fileNamePtr);
+		std::cout << "File Write Enter: " << fileName << std::endl;
+	}
+	// Else, we do not know what this process is and so we cannot get the name
+	// of the file.
+	else {
+		std::cerr << "write_enter was triggered but asid " << asid <<
+			" is not known." << std::endl;
+	}
+}
+
 bool init_plugin(void *self) {
 	dependency_file.plugin_ptr = self;
 	
@@ -91,6 +121,7 @@ bool init_plugin(void *self) {
 	PPP_REG_CB("syscalls2", on_sys_open_enter, cbf_openEnter);
 	PPP_REG_CB("syscalls2", on_sys_read_enter, cbf_readEnter);
 	PPP_REG_CB("syscalls2", on_sys_pread64_enter, cbf_pread64Enter);
+	PPP_REG_CB("syscalls2", on_sys_write_enter, cbf_writeEnter);
 	
 	// Register the Before Block Execution Functions
 	panda_cb pcb;
