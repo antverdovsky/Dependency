@@ -1,8 +1,10 @@
 #include "utils.h"
 
+#include <iostream>
+
 std::string getGuestString(CPUState *cpu, size_t maxSize, target_ulong addr) {
 	// Create an empty string with all zeros
-	std::string str(256, '0');
+	std::string str(maxSize, '0');
 	
 	for (size_t i = 0; i < maxSize; ++i) {
 		// Fetch the unsigned integer character from PANDA's memory. We do this

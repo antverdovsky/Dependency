@@ -127,6 +127,29 @@ void cbf_readEnter(CPUState *cpu, target_ulong pc, uint32_t fd,
 void cbf_writeEnter(CPUState *cpu, target_ulong pc, uint32_t fd, 
 		uint32_t buffer, uint32_t count);
 
+/// <summary>
+/// Returns a string with the filename corresponding to the specified file
+/// descriptor.
+/// </summary>
+/// <param name="cpu">
+/// The CPU State pointer.
+/// </param>
+/// <param name="processes">
+/// The map of the ASID to the OSI processes.
+/// </param>
+/// <param name="fd">
+/// The file descriptor for which the file name is to be fetched.
+/// </param>
+/// <param name="debug">
+/// Should errors be logged to the standard error stream? False by default.
+/// </param>
+/// <returns>
+/// The string containing the filename. If the file name could not be fetched,
+/// an empty string is returned instead.
+/// </returns>
+std::string getFileName(CPUState *cpu, 
+		std::map<target_ulong, OsiProc>& processes, int fd, bool debug = false);
+
 extern "C" {
 	/// <summary>
 	/// Initializes this plugin using the specified plugin pointer.

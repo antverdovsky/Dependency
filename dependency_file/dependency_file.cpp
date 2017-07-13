@@ -20,40 +20,34 @@ int cbf_beforeBlockExectuion(CPUState *cpu, TranslationBlock *tB) {
 
 void cbf_pread64Enter(CPUState *cpu, target_ulong pc, uint32_t fd, 
 		uint32_t buffer, uint32_t count, uint64_t pos) {
-	// Get current ASID from PANDA
-	target_ulong asid = panda_current_asid(cpu);
-
-	// If any process has the ASID, we can use it to get the name of the file
-	// which this pread64_enter function is being called for.
-	if (processesMap.count(asid) > 0) {
-		auto &process = processesMap[asid];
-
-		// Get the file name from osi_linux. If failed, print error and 
-		// continue with excecution.
-		char *fileNamePtr = osi_linux_fd_to_filename(cpu, &process, fd);
-		if (!fileNamePtr) { 
-			std::cerr << "osi_linux_fd_to_filename failed." << std::endl;
-			return;
-		}
-
-		std::string fileName(fileNamePtr);
-		std::cout << "File Read Enter: " << fileName << std::endl;
-	}
-	// Else, we do not know what this process is and so we cannot get the name
-	// of the file.
-	else {
-		std::cerr << "pread64_enter was triggered but asid " << asid <<
-			" is not known." << std::endl;
+	if (dependency_file.debug) {
+		std::string file = getFileName(cpu, processesMap, fd, true);
+		file = file.empty() ? "ERROR FETCHING; SEE ABOVE OUTPUT." : file;
+		
+		std::string contents = getGuestString(cpu, count, buffer);
+		
+		std::cout << "dependency_file: pread64_enter triggered at " <<
+			rr_get_guest_instr_count() << std::endl;
+		std::cout << "File Descriptor: " << fd << std::endl;
+		std::cout << "File Name: " << file << std::endl;
+		std::cout << "Buffer Contents:\n------\n " << contents << "\n------" <<
+			std::endl;
 	}
 }
 
 void cbf_openEnter(CPUState *cpu, target_ulong pc, uint32_t fileAddr, int32_t
 		flags, int32_t mode) {
-	// Get the file name from memory (256 is used for the maximum length since
-	// the maximum length of a linux file is 255, plus one for \0).
-	std::string fileName = getGuestString(cpu, 256, fileAddr);
-	
-	std::cout << "Detected File Opened, Name: " << fileName << std::endl;
+	if (dependency_file.debug) {
+		// 256 is used here since max file name length in Linux is 255 + null
+		// terminator.
+		std::string file = getGuestString(cpu, 256, fileAddr);
+		
+		std::cout << "dependency_file: open_enter triggered at " <<
+			rr_get_guest_instr_count() << std::endl;
+		std::cout << "File Name: " << file << std::endl;
+		std::cout << "File Flags: " << flags << std::endl;
+		std::cout << "File Mode: " << mode << std::endl;
+	}
 }
 
 void cbf_readEnter(CPUState *cpu, target_ulong pc, uint32_t fd, 
@@ -65,31 +59,55 @@ void cbf_readEnter(CPUState *cpu, target_ulong pc, uint32_t fd,
 
 void cbf_writeEnter(CPUState *cpu, target_ulong pc, uint32_t fd, 
 		uint32_t buffer, uint32_t count) {
+	if (dependency_file.debug) {
+		std::string file = getFileName(cpu, processesMap, fd, true);
+		file = file.empty() ? "ERROR FETCHING; SEE ABOVE OUTPUT." : file;
+		
+		std::string contents = getGuestString(cpu, count, buffer);
+		
+		std::cout << "dependency_file: write_enter triggered at " <<
+			rr_get_guest_instr_count() << std::endl;
+		std::cout << "File Descriptor: " << fd << std::endl;
+		std::cout << "File Name: " << file << std::endl;
+		std::cout << "Buffer Contents:\n------\n " << contents << "\n------" <<
+			std::endl;
+	}
+}
+
+std::string getFileName(CPUState *cpu, 
+		std::map<target_ulong, OsiProc>& processes, int fd, bool debug) {
 	// Get current ASID from PANDA
 	target_ulong asid = panda_current_asid(cpu);
 
 	// If any process has the ASID, we can use it to get the name of the file
-	// which this write_enter function is being called for.
-	if (processesMap.count(asid) > 0) {
-		auto &process = processesMap[asid];
+	if (processes.count(asid) > 0) {
+		auto &process = processes[asid];
 
 		// Get the file name from osi_linux. If failed, print error and 
 		// continue with excecution.
 		char *fileNamePtr = osi_linux_fd_to_filename(cpu, &process, fd);
-		if (!fileNamePtr) { 
-			std::cerr << "osi_linux_fd_to_filename failed." << std::endl;
-			return;
+		if (!fileNamePtr) {
+			if (debug) {
+				std::cerr << "dependency_file: osi_linux_fd_to_filename failed"
+					<< " for fd " << fd << ", unable to get file name." << 
+					std::endl;
+			}
+			
+			return "";
 		}
 
-		std::string fileName(fileNamePtr);
-		std::cout << "File Write Enter: " << fileName << std::endl;
+		// If file name pointer is not null, the function worked, return file
+		// name as a string.
+		return std::string(fileNamePtr);
 	}
 	// Else, we do not know what this process is and so we cannot get the name
 	// of the file.
-	else {
-		std::cerr << "write_enter was triggered but asid " << asid <<
-			" is not known." << std::endl;
+	if (debug) {
+		std::cerr << "dependency_file: no process with asid " << asid << 
+			" found, unable to get file name." << std::endl;
 	}
+	
+	return "";
 }
 
 bool init_plugin(void *self) {

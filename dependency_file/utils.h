@@ -26,6 +26,9 @@ extern "C" {
 /// <param name="addr">
 /// The address from which the string is to be read.
 /// </param>
+/// <returns>
+/// The guest's string at the memory location.
+/// </returns>
 std::string getGuestString(CPUState *cpu, size_t maxSize, target_ulong addr);
 
 #endif
