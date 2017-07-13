@@ -20,9 +20,30 @@ int cbf_beforeBlockExectuion(CPUState *cpu, TranslationBlock *tB) {
 
 void cbf_pread64Enter(CPUState *cpu, target_ulong pc, uint32_t fd, 
 		uint32_t buffer, uint32_t count, uint64_t pos) {
-	std::string bufferStr = getGuestString(cpu, count, buffer);
-	
-	std::cout << "Buffer Contents: " << bufferStr << std::endl;
+	// Get current ASID from PANDA
+	target_ulong asid = panda_current_asid(cpu);
+
+	// If any process has the ASID, we can use it to get the name of the file
+	// which this pread64_enter function is being called for.
+	std::cout << "ASID: " << asid << std::endl;
+	if (processesMap.count(asid) > 0) {
+		auto &process = processesMap[asid];
+
+		char *fileNamePtr = osi_linux_fd_to_filename(cpu, &process, fd);
+		if (!fileNamePtr) { 
+			std::cerr << "osi_linux_fd_to_filename failed." << std::endl;
+			return;
+		}
+
+		std::string fileName(fileNamePtr);
+		std::cout << "File Read Enter: " << fileName << std::endl;
+	}
+	// Else, we do not know what this process is and so we cannot get the name
+	// of the file.
+	else {
+		std::cerr << "pread64_enter was triggered but asid " << asid <<
+			" is not known." << std::endl;
+	}
 }
 
 void cbf_openEnter(CPUState *cpu, target_ulong pc, uint32_t fileAddr, int32_t
@@ -82,8 +103,4 @@ bool init_plugin(void *self) {
 
 void uninit_plugin(void *self) {
 	printf("Goodbye World from Dependency_File Plugin.\n");
-
-	for (auto &x : processesMap) {
-		std::cout << x.first << " : " << x.second.name << std::endl;
-	}
 }
