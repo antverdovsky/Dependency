@@ -4,7 +4,26 @@
 
 #include "utils.h"
 
-Dependency_File dependency_file;
+int cbf_beforeBlockExectuion(CPUState *cpu, TranslationBlock *tB) {
+	// Do nothing if PANDA is not in Kernel Mode
+	if (!panda_in_kernel(cpu)) return 0;
+	
+	// Get the current process using OSI and add it to the processes map
+	OsiProc *process = get_current_process(cpu);
+	target_ulong asid = panda_current_asid(cpu);
+	processesMap[asid] = *process;
+	
+	// Free the OSI process wrapper
+	free_osiproc(process);
+	return 1;
+}
+
+void cbf_pread64Enter(CPUState *cpu, target_ulong pc, uint32_t fd, 
+		uint32_t buffer, uint32_t count, uint64_t pos) {
+	std::string bufferStr = getGuestString(cpu, count, buffer);
+	
+	std::cout << "Buffer Contents: " << bufferStr << std::endl;
+}
 
 void cbf_openEnter(CPUState *cpu, target_ulong pc, uint32_t fileAddr, int32_t
 		flags, int32_t mode) {
@@ -22,22 +41,15 @@ void cbf_readEnter(CPUState *cpu, target_ulong pc, uint32_t fd,
 	cbf_pread64Enter(cpu, pc, fd, buffer, count, 0);
 }
 
-void cbf_pread64Enter(CPUState *cpu, target_ulong pc, uint32_t fd, 
-		uint32_t buffer, uint32_t count, uint64_t pos) {
-	std::string bufferStr = getGuestString(cpu, count, buffer);
-	
-	std::cout << "Buffer Contents: " << bufferStr << std::endl;
-}
-
 bool init_plugin(void *self) {
 	dependency_file.plugin_ptr = self;
 	
 	// Load dependent plugins
 	panda_require("osi");
-	panda_require("syscalls2");
+	assert(init_osi_api());
 	panda_require("osi_linux");
-	assert(init_osi_api);
-	assert(init_osi_linux_api);
+	assert(init_osi_linux_api());
+	panda_require("syscalls2");
 	
 	// Parse Arguments:
 	// "source" : The source file name, defaults to "source.txt"
@@ -59,10 +71,19 @@ bool init_plugin(void *self) {
 	PPP_REG_CB("syscalls2", on_sys_read_enter, cbf_readEnter);
 	PPP_REG_CB("syscalls2", on_sys_pread64_enter, cbf_pread64Enter);
 	
+	// Register the Before Block Execution Functions
+	panda_cb pcb;
+	pcb.before_block_exec = cbf_beforeBlockExectuion;
+	panda_register_callback(self, PANDA_CB_BEFORE_BLOCK_EXEC, pcb);
+	
 	std::cout << "Initialized dependency_file plugin" << std::endl;
 	return true;
 }
 
 void uninit_plugin(void *self) {
 	printf("Goodbye World from Dependency_File Plugin.\n");
+
+	for (auto &x : processesMap) {
+		std::cout << x.first << " : " << x.second.name << std::endl;
+	}
 }

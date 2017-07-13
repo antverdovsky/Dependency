@@ -1,5 +1,5 @@
-#ifndef DEPENDENCY_FILE_UITLS_H
-#define DEPENDENCY_FILE_UITLS_H
+#ifndef DEPENDENCY_UITLS_H
+#define DEPENDENCY_UITLS_H
 
 #include <string>
 
