@@ -20,55 +20,26 @@ int cbf_beforeBlockExectuion(CPUState *cpu, TranslationBlock *tB) {
 
 void cbf_pread64Enter(CPUState *cpu, target_ulong pc, uint32_t fd, 
 		uint32_t buffer, uint32_t count, uint64_t pos) {
-	if (dependency_file.debug) {
-		std::string file = getFileName(cpu, processesMap, fd, true);
-		file = file.empty() ? "ERROR FETCHING; SEE ABOVE OUTPUT." : file;
-		
-		std::string contents = getGuestString(cpu, count, buffer);
-		
-		std::cout << "dependency_file: pread64_enter triggered at " <<
-			rr_get_guest_instr_count() << std::endl;
-		std::cout << "File Descriptor: " << fd << std::endl;
-		std::cout << "File Name: " << file << std::endl;
-		std::cout << "Buffer Count: " << count << std::endl;
-		std::cout << "Buffer Contents:\n------\n " << contents << "\n------" <<
+	std::string fileName = getFileName(cpu, fd, dependency_file.debug);
+	logFileCallback("pread64_enter", fileName);
+	
+	if (fileName == dependency_file.sourceFile) {
+		std::cout << "dependency_file: ***saw read of source file***" << 
 			std::endl;
+		sawReadOfSource = true;
 	}
 }
 
 void cbf_pread64Return(CPUState *cpu, target_ulong pc, uint32_t fd,
 		uint32_t buffer, uint32_t count, uint64_t pos) {
-	if (dependency_file.debug) {
-		std::string file = getFileName(cpu, processesMap, fd, true);
-		file = file.empty() ? "ERROR FETCHING; SEE ABOVE OUTPUT." : file;
-		
-		std::string contents = getGuestString(cpu, count, buffer);
-		int actualCount = ((CPUArchState*)cpu->env_ptr)->regs[0];
-		
-		std::cout << "dependency_file: pread64_return triggered at " <<
-			rr_get_guest_instr_count() << std::endl;
-		std::cout << "File Descriptor: " << fd << std::endl;
-		std::cout << "File Name: " << file << std::endl;
-		std::cout << "Buffer Count: " << count << std::endl;
-		std::cout << "Actual Buffer Count: " << actualCount << std::endl;
-		std::cout << "Buffer Contents:\n------\n " << contents << "\n------" <<
-			std::endl;
-	}		
+	std::string fileName = getFileName(cpu, fd, dependency_file.debug);
+	logFileCallback("pread64_return", fileName);
 }
 
 void cbf_openEnter(CPUState *cpu, target_ulong pc, uint32_t fileAddr, int32_t
 		flags, int32_t mode) {
-	if (dependency_file.debug) {
-		// 256 is used here since max file name length in Linux is 255 + null
-		// terminator.
-		std::string file = getGuestString(cpu, 256, fileAddr);
-		
-		std::cout << "dependency_file: open_enter triggered at " <<
-			rr_get_guest_instr_count() << std::endl;
-		std::cout << "File Name: " << file << std::endl;
-		std::cout << "File Flags: " << flags << std::endl;
-		std::cout << "File Mode: " << mode << std::endl;
-	}
+	std::string fileName = getGuestString(cpu, fileAddr, 256);
+	logFileCallback("open_enter", fileName);
 }
 
 void cbf_readEnter(CPUState *cpu, target_ulong pc, uint32_t fd, 
@@ -86,32 +57,23 @@ void cbf_readReturn(CPUState *cpu, target_ulong pc, uint32_t fd,
 
 void cbf_writeEnter(CPUState *cpu, target_ulong pc, uint32_t fd, 
 		uint32_t buffer, uint32_t count) {
-	if (dependency_file.debug) {
-		std::string file = getFileName(cpu, processesMap, fd, true);
-		file = file.empty() ? "ERROR FETCHING; SEE ABOVE OUTPUT." : file;
-		
-		std::string contents = getGuestString(cpu, count, buffer);
-		int actualCount = ((CPUArchState*)cpu->env_ptr)->regs[0];
-		
-		std::cout << "dependency_file: write_enter triggered at " <<
-			rr_get_guest_instr_count() << std::endl;
-		std::cout << "File Descriptor: " << fd << std::endl;
-		std::cout << "File Name: " << file << std::endl;
-		std::cout << "Buffer Count: " << count << std::endl;
-		std::cout << "Actual Buffer Count: " << actualCount << std::endl;
-		std::cout << "Buffer Contents:\n------\n " << contents << "\n------" <<
+	std::string fileName = getFileName(cpu, fd, dependency_file.debug);
+	logFileCallback("write_enter", fileName);
+	
+	if (fileName == dependency_file.sinkFile) {
+		std::cout << "dependency_file: ***saw write of sink file***" << 
 			std::endl;
+		sawWriteOfSink = true;
 	}
 }
 
-std::string getFileName(CPUState *cpu, 
-		std::map<target_ulong, OsiProc>& processes, int fd, bool debug) {
+std::string getFileName(CPUState *cpu, int fd, bool debug) {
 	// Get current ASID from PANDA
 	target_ulong asid = panda_current_asid(cpu);
 
 	// If any process has the ASID, we can use it to get the name of the file
-	if (processes.count(asid) > 0) {
-		auto &process = processes[asid];
+	if (processesMap.count(asid) > 0) {
+		auto &process = processesMap[asid];
 
 		// Get the file name from osi_linux. If failed, print error and 
 		// continue with excecution.
@@ -138,6 +100,13 @@ std::string getFileName(CPUState *cpu,
 	}
 	
 	return "";
+}
+
+void logFileCallback(const std::string &event, const std::string &file) {
+	if (dependency_file.debug) {
+		std::cout << "dependency_file: " << event << " called for file " <<
+			file << "." << std::endl;
+	}
 }
 
 bool init_plugin(void *self) {
@@ -183,5 +152,8 @@ bool init_plugin(void *self) {
 }
 
 void uninit_plugin(void *self) {
-	printf("Goodbye World from Dependency_File Plugin.\n");
+	std::cout << "dependency_file: saw read of source? " << sawReadOfSource <<
+		std::endl;
+	std::cout << "dependency_file: saw write of sink? " << sawWriteOfSink <<
+		std::endl;
 }

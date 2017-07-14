@@ -179,9 +179,6 @@ void cbf_writeEnter(CPUState *cpu, target_ulong pc, uint32_t fd,
 /// <param name="cpu">
 /// The CPU State pointer.
 /// </param>
-/// <param name="processes">
-/// The map of the ASID to the OSI processes.
-/// </param>
 /// <param name="fd">
 /// The file descriptor for which the file name is to be fetched.
 /// </param>
@@ -192,8 +189,21 @@ void cbf_writeEnter(CPUState *cpu, target_ulong pc, uint32_t fd,
 /// The string containing the filename. If the file name could not be fetched,
 /// an empty string is returned instead.
 /// </returns>
-std::string getFileName(CPUState *cpu, 
-		std::map<target_ulong, OsiProc>& processes, int fd, bool debug = false);
+std::string getFileName(CPUState *cpu, int fd, bool debug = false);
+		
+/// <summary>
+/// Prints a string that a file was interacted with by some system call, if
+/// the debug mode of the plugin is enabled, in the following format:
+/// "dependency_file: saw $<param ref="event">$ called for file 
+/// $<param ref="file">$."
+/// </summary>
+/// <param name="event">
+/// The name of the event.
+/// </param>
+/// <param name="file">
+/// The name of the file.
+/// </param>
+void logFileCallback(const std::string &event, const std::string &file);
 
 extern "C" {
 	/// <summary>
@@ -218,5 +228,8 @@ extern "C" {
 
 Dependency_File dependency_file;                // The Plugin Structure
 std::map<target_ulong, OsiProc> processesMap;   // The Guest Processes
+
+bool sawReadOfSource = false;                   // Was source file read from?
+bool sawWriteOfSink = false;                    // Was sink file written to?
 
 #endif
