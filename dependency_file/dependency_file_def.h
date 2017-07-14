@@ -7,6 +7,8 @@
 #include "panda/plugin.h"
 #include "panda/plugin_plugin.h"
 
+#include "taint2/taint2.h"
+
 extern "C" {
 	#include "panda/addr.h"
 	
@@ -14,6 +16,7 @@ extern "C" {
 	#include "osi/osi_ext.h"
 	#include "osi_linux/osi_linux_ext.h"
 	#include "syscalls2/gen_syscalls_ext_typedefs.h"
+	#include "taint2/taint2_ext.h"
 }
 
 struct Dependency_File {
@@ -22,6 +25,7 @@ struct Dependency_File {
 	std::string sourceFile = "";       // The source file name (Independent)
 	std::string sinkFile = "";         // The sink file name (Dependent)
 	bool debug = false;                // Print debug information?
+	int enableTaintAt = 1;             // Instruction # @ which to enable taint
 };
 
 /// <summary>
@@ -39,6 +43,20 @@ struct Dependency_File {
 /// One if successful, zero otherwise.
 /// </returns>
 int cbf_beforeBlockExectuion(CPUState *cpu, TranslationBlock *tB);
+
+/// <summary>
+/// Callback function which can be called before a PANDA block translation.
+/// This particular function is used to enable the taint2 plugin if the current
+/// instruction count exceeds the enable taint at property of the dependency
+/// file plugin.
+/// </summary>
+/// <param name="cpu">
+/// The CPU state pointer.
+/// </param>
+/// <param name="pc">
+/// The program counter.
+/// </param>
+int cbf_beforeBlockTranslate(CPUState *cpu, target_ulong pc);
 
 /// <summary>
 /// Callback function for the syscalls2 "on_sys_pread64_enter_t" event.
@@ -66,7 +84,7 @@ void cbf_pread64Enter(CPUState *cpu, target_ulong pc, uint32_t fd,
 
 /// <summary>
 /// Callback function for the syscalls2 "on_sys_pread64_return_t" event.
-/// </summart>
+/// </summary>
 /// <param name="cpu">
 /// The CPU state pointer.
 /// </param>
@@ -195,7 +213,7 @@ std::string getFileName(CPUState *cpu, int fd, bool debug = false);
 /// Prints a string that a file was interacted with by some system call, if
 /// the debug mode of the plugin is enabled, in the following format:
 /// "dependency_file: saw $<param ref="event">$ called for file 
-/// $<param ref="file">$."
+/// \"$<param ref="file">$\" at instruction $rr_get_guest_instr_count()$."
 /// </summary>
 /// <param name="event">
 /// The name of the event.
@@ -204,6 +222,22 @@ std::string getFileName(CPUState *cpu, int fd, bool debug = false);
 /// The name of the file.
 /// </param>
 void logFileCallback(const std::string &event, const std::string &file);
+
+/// <summary>
+/// Taints the contents of the buffer at the specified virtual address and of 
+/// the specified length. This function does nothing if taint2 is not currently
+/// enabled.
+/// </summary>
+/// <param name="cpu">
+/// The CPU State pointer.
+/// </param>
+/// <param name="vAddr">
+/// The virtual address of the buffer.
+/// </param>
+/// <param name="length">
+/// The length of the buffer, in bytes.
+/// </param>
+void taintBufferContents(CPUState *cpu, target_ulong vAddr, uint32_t length);
 
 extern "C" {
 	/// <summary>
