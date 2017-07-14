@@ -30,9 +30,30 @@ void cbf_pread64Enter(CPUState *cpu, target_ulong pc, uint32_t fd,
 			rr_get_guest_instr_count() << std::endl;
 		std::cout << "File Descriptor: " << fd << std::endl;
 		std::cout << "File Name: " << file << std::endl;
+		std::cout << "Buffer Count: " << count << std::endl;
 		std::cout << "Buffer Contents:\n------\n " << contents << "\n------" <<
 			std::endl;
 	}
+}
+
+void cbf_pread64Return(CPUState *cpu, target_ulong pc, uint32_t fd,
+		uint32_t buffer, uint32_t count, uint64_t pos) {
+	if (dependency_file.debug) {
+		std::string file = getFileName(cpu, processesMap, fd, true);
+		file = file.empty() ? "ERROR FETCHING; SEE ABOVE OUTPUT." : file;
+		
+		std::string contents = getGuestString(cpu, count, buffer);
+		int actualCount = ((CPUArchState*)cpu->env_ptr)->regs[0];
+		
+		std::cout << "dependency_file: pread64_return triggered at " <<
+			rr_get_guest_instr_count() << std::endl;
+		std::cout << "File Descriptor: " << fd << std::endl;
+		std::cout << "File Name: " << file << std::endl;
+		std::cout << "Buffer Count: " << count << std::endl;
+		std::cout << "Actual Buffer Count: " << actualCount << std::endl;
+		std::cout << "Buffer Contents:\n------\n " << contents << "\n------" <<
+			std::endl;
+	}		
 }
 
 void cbf_openEnter(CPUState *cpu, target_ulong pc, uint32_t fileAddr, int32_t
@@ -57,6 +78,12 @@ void cbf_readEnter(CPUState *cpu, target_ulong pc, uint32_t fd,
 	cbf_pread64Enter(cpu, pc, fd, buffer, count, 0);
 }
 
+void cbf_readReturn(CPUState *cpu, target_ulong pc, uint32_t fd, 
+		uint32_t buffer, uint32_t count) {
+	// See cbf_readEnter for explanation
+	cbf_pread64Return(cpu, pc, fd, buffer, count, 0);
+}
+
 void cbf_writeEnter(CPUState *cpu, target_ulong pc, uint32_t fd, 
 		uint32_t buffer, uint32_t count) {
 	if (dependency_file.debug) {
@@ -64,11 +91,14 @@ void cbf_writeEnter(CPUState *cpu, target_ulong pc, uint32_t fd,
 		file = file.empty() ? "ERROR FETCHING; SEE ABOVE OUTPUT." : file;
 		
 		std::string contents = getGuestString(cpu, count, buffer);
+		int actualCount = ((CPUArchState*)cpu->env_ptr)->regs[0];
 		
 		std::cout << "dependency_file: write_enter triggered at " <<
 			rr_get_guest_instr_count() << std::endl;
 		std::cout << "File Descriptor: " << fd << std::endl;
 		std::cout << "File Name: " << file << std::endl;
+		std::cout << "Buffer Count: " << count << std::endl;
+		std::cout << "Actual Buffer Count: " << actualCount << std::endl;
 		std::cout << "Buffer Contents:\n------\n " << contents << "\n------" <<
 			std::endl;
 	}
@@ -138,7 +168,9 @@ bool init_plugin(void *self) {
 	// Register SysCalls2 Callback Functions
 	PPP_REG_CB("syscalls2", on_sys_open_enter, cbf_openEnter);
 	PPP_REG_CB("syscalls2", on_sys_read_enter, cbf_readEnter);
+	PPP_REG_CB("syscalls2", on_sys_read_return, cbf_readReturn);
 	PPP_REG_CB("syscalls2", on_sys_pread64_enter, cbf_pread64Enter);
+	PPP_REG_CB("syscalls2", on_sys_pread64_return, cbf_pread64Return);
 	PPP_REG_CB("syscalls2", on_sys_write_enter, cbf_writeEnter);
 	
 	// Register the Before Block Execution Functions

@@ -65,6 +65,30 @@ void cbf_pread64Enter(CPUState *cpu, target_ulong pc, uint32_t fd,
 		uint32_t buffer, uint32_t count, uint64_t pos);
 
 /// <summary>
+/// Callback function for the syscalls2 "on_sys_pread64_return_t" event.
+/// </summart>
+/// <param name="cpu">
+/// The CPU state pointer.
+/// </param>
+/// <param name="pc">
+/// The program counter.
+/// </param>
+/// <param name="fd">
+/// The file descriptor.
+/// </param>
+/// <param name="buffer">
+/// The virtual memory address of the read buffer.
+/// </param>
+/// <param name="count">
+/// The length of the read buffer.
+/// </param>
+/// <param name="pos">
+/// The position from which the file was read.
+/// </param>
+void cbf_pread64Return(CPUState *cpu, target_ulong pc, uint32_t fd,
+		uint32_t buffer, uint32_t count, uint64_t pos);
+
+/// <summary>
 /// Callback function for the syscalls2 "on_sys_open_enter_t" event.
 /// </summary>
 /// <param name="cpu">
@@ -105,6 +129,27 @@ void cbf_openEnter(CPUState *cpu, target_ulong pc, uint32_t fileAddr, int32_t
 /// </param>
 void cbf_readEnter(CPUState *cpu, target_ulong pc, uint32_t fd, 
 		uint32_t buffer, uint32_t count);
+
+/// <summary>
+/// Callback function for the syscalls2 "on_sys_read_return_t" event.
+/// </summary>
+/// <param name="cpu">
+/// The CPU state pointer.
+/// </param>
+/// <param name="pc">
+/// The program counter.
+/// </param>
+/// <param name="fd">
+/// The file descriptor.
+/// </param>
+/// <param name="buffer">
+/// The virtual memory address of the read buffer.
+/// </param>
+/// <param name="count">
+/// The length of the read buffer.
+/// </param>
+void cbf_readReturn(CPUState *cpu, target_ulong pc,
+        uint32_t fd, uint32_t buf, uint32_t count);
 		
 /// <summary>
 /// Callback function for the syscals2 "on_sys_write_enter_t" event.
