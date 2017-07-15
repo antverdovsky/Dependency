@@ -280,6 +280,22 @@ void cbf_writeReturn(CPUState *cpu, target_ulong pc, uint32_t fd,
 /// an empty string is returned instead.
 /// </returns>
 std::string getFileName(CPUState *cpu, int fd, bool debug = false);
+
+/// <summary>
+/// Taints the contents of the buffer at the specified virtual address and of 
+/// the specified length. This function does nothing if taint2 is not currently
+/// enabled.
+/// </summary>
+/// <param name="cpu">
+/// The CPU State pointer.
+/// </param>
+/// <param name="vAddr">
+/// The virtual address of the buffer.
+/// </param>
+/// <param name="length">
+/// The length of the buffer, in bytes.
+/// </param>
+void labelBufferContents(CPUState *cpu, target_ulong vAddr, uint32_t length);
 		
 /// <summary>
 /// Prints a string that a file was interacted with by some system call, if
@@ -296,9 +312,9 @@ std::string getFileName(CPUState *cpu, int fd, bool debug = false);
 void logFileCallback(const std::string &event, const std::string &file);
 
 /// <summary>
-/// Taints the contents of the buffer at the specified virtual address and of 
-/// the specified length. This function does nothing if taint2 is not currently
-/// enabled.
+/// Queries the contents of the buffer at the specified virtual address and of
+/// the specified length for taint. This function does nothing if taint2 is not
+/// currently enabled, and returns a negative integer in this case.
 /// </summary>
 /// <param name="cpu">
 /// The CPU State pointer.
@@ -309,7 +325,11 @@ void logFileCallback(const std::string &event, const std::string &file);
 /// <param name="length">
 /// The length of the buffer, in bytes.
 /// </param>
-void taintBufferContents(CPUState *cpu, target_ulong vAddr, uint32_t length);
+/// <returns>
+/// The number of bytes which are tainted in the buffer, or a negative integer
+/// if taint2 is not enabled.
+/// </returns>
+int queryBufferContents(CPUState *cpu, target_ulong vAddr, uint32_t length);
 
 extern "C" {
 	/// <summary>
