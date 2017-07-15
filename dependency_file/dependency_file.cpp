@@ -31,6 +31,8 @@ int cbf_beforeBlockTranslate(CPUState *cpu, target_ulong pc) {
 		
 		taint2_enable_taint();
 	}
+	
+	return 0;
 }
 
 void cbf_pread64Enter(CPUState *cpu, target_ulong pc, uint32_t fd, 
@@ -63,6 +65,30 @@ void cbf_pread64Return(CPUState *cpu, target_ulong pc, uint32_t fd,
 	}
 }
 
+void cbf_pwrite64Enter(CPUState *cpu, target_ulong pc, uint32_t fd,
+		uint32_t buffer, uint32_t count, uint64_t pos) {
+	std::string fileName = getFileName(cpu, fd, dependency_file.debug);
+	logFileCallback("pwrite64_enter", fileName);
+	
+	if (fileName == dependency_file.sinkFile) {
+		std::cout << "dependency_file: ***saw pwrite enter of sink file***" << 
+			std::endl;
+		sawWriteOfSink = true;
+	}		
+}
+
+void cbf_pwrite64Return(CPUState *cpu, target_ulong pc, uint32_t fd,
+		uint32_t buffer, uint32_t count, uint64_t pos) {
+	std::string fileName = getFileName(cpu, fd, dependency_file.debug);
+	logFileCallback("pwrite64_return", fileName);
+	
+	if (fileName == dependency_file.sinkFile) {
+		std::cout << "dependency_file: ***saw pwrite return of sink file***" << 
+			std::endl;
+		sawWriteOfSink = true;
+	}
+}
+
 void cbf_openEnter(CPUState *cpu, target_ulong pc, uint32_t fileAddr, int32_t
 		flags, int32_t mode) {
 	std::string fileName = getGuestString(cpu, fileAddr, 256);
@@ -84,14 +110,14 @@ void cbf_readReturn(CPUState *cpu, target_ulong pc, uint32_t fd,
 
 void cbf_writeEnter(CPUState *cpu, target_ulong pc, uint32_t fd, 
 		uint32_t buffer, uint32_t count) {
-	std::string fileName = getFileName(cpu, fd, dependency_file.debug);
-	logFileCallback("write_enter", fileName);
-	
-	if (fileName == dependency_file.sinkFile) {
-		std::cout << "dependency_file: ***saw write enter of sink file***" << 
-			std::endl;
-		sawWriteOfSink = true;
-	}
+	// See cbf_readEnter for explanation
+	cbf_pwrite64Enter(cpu, pc, fd, buffer, count, 0);
+}
+
+void cbf_writeReturn(CPUState *cpu, target_ulong pc, uint32_t fd,
+		uint32_t buffer, uint32_t count) {
+	// See cbf_readEnter for explanation
+	cbf_pwrite64Return(cpu, pc, fd, buffer, count, 0);
 }
 
 std::string getFileName(CPUState *cpu, int fd, bool debug) {
@@ -198,11 +224,14 @@ bool init_plugin(void *self) {
 	
 	// Register SysCalls2 Callback Functions
 	PPP_REG_CB("syscalls2", on_sys_open_enter, cbf_openEnter);
-	PPP_REG_CB("syscalls2", on_sys_read_enter, cbf_readEnter);
-	PPP_REG_CB("syscalls2", on_sys_read_return, cbf_readReturn);
 	PPP_REG_CB("syscalls2", on_sys_pread64_enter, cbf_pread64Enter);
 	PPP_REG_CB("syscalls2", on_sys_pread64_return, cbf_pread64Return);
+	PPP_REG_CB("syscalls2", on_sys_pwrite64_enter, cbf_pwrite64Enter);
+	PPP_REG_CB("syscalls2", on_sys_pwrite64_return, cbf_pwrite64Return);
+	PPP_REG_CB("syscalls2", on_sys_read_enter, cbf_readEnter);
+	PPP_REG_CB("syscalls2", on_sys_read_return, cbf_readReturn);
 	PPP_REG_CB("syscalls2", on_sys_write_enter, cbf_writeEnter);
+	PPP_REG_CB("syscalls2", on_sys_write_return, cbf_writeReturn);
 	
 	/// Register the Before Block Execution Functions
 	panda_cb pcb;

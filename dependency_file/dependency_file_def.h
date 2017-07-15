@@ -56,6 +56,9 @@ int cbf_beforeBlockExectuion(CPUState *cpu, TranslationBlock *tB);
 /// <param name="pc">
 /// The program counter.
 /// </param>
+/// <returns>
+/// Zero always.
+/// </returns>
 int cbf_beforeBlockTranslate(CPUState *cpu, target_ulong pc);
 
 /// <summary>
@@ -104,6 +107,54 @@ void cbf_pread64Enter(CPUState *cpu, target_ulong pc, uint32_t fd,
 /// The position from which the file was read.
 /// </param>
 void cbf_pread64Return(CPUState *cpu, target_ulong pc, uint32_t fd,
+		uint32_t buffer, uint32_t count, uint64_t pos);
+		
+/// <summary>
+/// Callback function for the syscalls2 "on_sys_pwrite64_enter_t" event.
+/// </summary>
+/// <param name="cpu">
+/// The CPU state pointer.
+/// </param>
+/// <param name="pc">
+/// The program counter.
+/// </param>
+/// <param name="fd">
+/// The file descriptor.
+/// </param>
+/// <param name="buffer">
+/// The virtual memory address of the read buffer.
+/// </param>
+/// <param name="count">
+/// The length of the read buffer.
+/// </param>
+/// <param name="pos">
+/// The position from which the file was read.
+/// </param>
+void cbf_pwrite64Enter(CPUState *cpu, target_ulong pc, uint32_t fd,
+		uint32_t buffer, uint32_t count, uint64_t pos);
+
+/// <summary>
+/// Callback function for the syscalls2 "on_sys_pwrite64_return_t" event.
+/// </summary>
+/// <param name="cpu">
+/// The CPU state pointer.
+/// </param>
+/// <param name="pc">
+/// The program counter.
+/// </param>
+/// <param name="fd">
+/// The file descriptor.
+/// </param>
+/// <param name="buffer">
+/// The virtual memory address of the read buffer.
+/// </param>
+/// <param name="count">
+/// The length of the read buffer.
+/// </param>
+/// <param name="pos">
+/// The position from which the file was read.
+/// </param>
+void cbf_pwrite64Return(CPUState *cpu, target_ulong pc, uint32_t fd,
 		uint32_t buffer, uint32_t count, uint64_t pos);
 
 /// <summary>
@@ -173,7 +224,7 @@ void cbf_readReturn(CPUState *cpu, target_ulong pc,
 /// Callback function for the syscals2 "on_sys_write_enter_t" event.
 /// </summary>
 /// <param name="cpu">
-/// The CPU state pointer.
+/// The CPU State pointer.
 /// </param>
 /// <param name="pc">
 /// The program counter.
@@ -188,6 +239,27 @@ void cbf_readReturn(CPUState *cpu, target_ulong pc,
 /// The length of the write buffer.
 /// </param>
 void cbf_writeEnter(CPUState *cpu, target_ulong pc, uint32_t fd, 
+		uint32_t buffer, uint32_t count);
+		
+/// <summary>
+/// Callback function for the syscalls2 "on_sys_write_return_t" event.
+/// </summary>
+/// <param name="cpu">
+/// The CPU State pointer.
+/// </param>
+/// <param name="pc">
+/// The program counter.
+/// </param>
+/// <param name="fd">
+/// The file descriptor.
+/// </param>
+/// <param name="buffer">
+/// The virtual memory address of the write buffer.
+/// </param>
+/// <param name="count">
+/// The length of the write buffer.
+/// </param>
+void cbf_writeReturn(CPUState *cpu, target_ulong pc, uint32_t fd,
 		uint32_t buffer, uint32_t count);
 
 /// <summary>
