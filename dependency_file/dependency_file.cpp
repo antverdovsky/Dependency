@@ -2,8 +2,6 @@
 
 #include <iostream>
 
-#include "utils.h"
-
 int cbf_beforeBlockExectuion(CPUState *cpu, TranslationBlock *tB) {
 	// Do nothing if PANDA is not in Kernel Mode
 	if (!panda_in_kernel(cpu)) return 0;
@@ -78,6 +76,8 @@ void cbf_pwrite64Enter(CPUState *cpu, target_ulong pc, uint32_t fd,
 		int numTainted = queryBufferContents(cpu, buffer, count);
 		std::cout << "dependency_file: " << numTainted << " tainted bytes " <<
 			"written to " << fileName << "." << std::endl;
+
+		if (numTainted > 0) dependency = true;
 	}		
 }
 
@@ -309,5 +309,7 @@ void uninit_plugin(void *self) {
 	std::cout << "dependency_file: saw read of source? " << sawReadOfSource <<
 		std::endl;
 	std::cout << "dependency_file: saw write of sink? " << sawWriteOfSink <<
+		std::endl;
+	std::cout << "dependency_file: dependency detechted? " << dependency <<
 		std::endl;
 }

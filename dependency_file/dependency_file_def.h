@@ -378,5 +378,6 @@ std::map<target_ulong, OsiProc> processesMap;   // The Guest Processes
 
 bool sawReadOfSource = false;                   // Was source file read from?
 bool sawWriteOfSink = false;                    // Was sink file written to?
+bool dependency = false;                        // Is sink dependent on source?
 
 #endif
