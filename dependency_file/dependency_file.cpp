@@ -253,6 +253,7 @@ int queryBufferContents(CPUState *cpu, target_ulong vAddr, uint32_t length) {
 }
 
 bool init_plugin(void *self) {
+#ifdef TARGET_I386
 	dependency_file.plugin_ptr = self;
 	
 	/// Load dependent plugins
@@ -303,6 +304,11 @@ bool init_plugin(void *self) {
 	panda_register_callback(self, PANDA_CB_BEFORE_BLOCK_EXEC, pcb);
 	
 	return true;
+#else
+	std::cout << "dependency_file is only supported for i386 targets." << 
+		std::endl;
+	return false;
+#endif
 }
 
 void uninit_plugin(void *self) {
