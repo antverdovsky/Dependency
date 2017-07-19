@@ -1,6 +1,8 @@
 #ifndef DEPENDENCY_NETWORK_H
 #define DEPENDENCY_NETWORK_H
 
+#include <vector>
+
 #include "panda/plugin.h"
 #include "panda/plugin_plugin.h"
 
@@ -55,6 +57,31 @@ void cbf_socketCallEnter(CPUState *cpu, target_ulong pc, int32_t call,
 /// </param>
 void cbf_socketCallEnter(CPUState *cpu, target_ulong pc, int32_t call,
 		uint32_t args);
+		
+/// <summary>
+/// Returns a vector of size <paramref="size"> containing the values of T read 
+/// from the virtual memory address <paramref="addr">. This method assumes that
+/// the values in memory are adjacent to each other (in an array).
+/// </summary>
+/// <typeparam name="T">
+/// The type of values to be read from the memory address.
+/// </typeparam>
+/// <param name="cpu">
+/// The CPU State pointer.
+/// </param>
+/// <param name="addr">
+/// The virtual memory address to the start of the T values.
+/// </param>
+/// <param name="size">
+/// The number of arguments to be read in. This is equivalent to the number of
+/// elements returned in the vector.
+/// </param>
+/// <returns>
+/// The vector of size <paramref="size"> containing the arguments fetched from
+/// <paramref="args">.
+/// </returns>
+template<typename T>
+std::vector<T> getMemoryValues(CPUState *cpu, uint32_t addr, uint32_t size);
 
 extern "C" {
 	/// <summary>
