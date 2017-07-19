@@ -16,13 +16,7 @@ void cbf_socketCallReturn(CPUState *cpu, target_ulong pc, int32_t call,
 		rr_get_guest_instr_count() << ", call type: " << call << "." << 
 		std::endl;
 		
-	if (call == SYS_CONNECT) {
-		std::cout << "dependency_network: saw connect call." << std::endl;
-		auto arguments = getMemoryValues<uint32_t>(cpu, args, 3);
-		for (auto i : arguments) {
-			std::cout << i << std::endl;
-		}
-	}
+	if (call == SYS_CONNECT) onSocketConnect(cpu, args);
 }
 
 template<typename T>
@@ -44,6 +38,50 @@ std::vector<T> getMemoryValues(CPUState *cpu, uint32_t addr, uint32_t size) {
 	}
 	
 	return arguments;
+}
+
+void onSocketConnect(CPUState *cpu, uint32_t args) {
+	std::cout << "dependency_network: socket_connect called at " <<
+		rr_get_guest_instr_count() << "." << std::endl;
+	
+	// Get the arguments from the args virtual memory
+	auto arguments = getMemoryValues<uint32_t>(cpu, args, 3);
+	
+	// Get the first and third arguments
+	int sockfd = arguments[0];
+	socklen_t addrLen = arguments[2]; 
+	
+	// Get the sockaddr structure from the arguments. The virtual memory 
+	// address to the sockaddr structure is stored in the second argument of
+	// the args passed to connect(). Use that address to get the pointer to the
+	// sockaddr structure itself.
+	auto sockaddrAddress = arguments[1];
+	sockaddr addr = getMemoryValues<sockaddr>(cpu, sockaddrAddress, 1)[0];
+	
+	// Stores the IP address found
+	char ipAddress[INET6_ADDRSTRLEN] = {0};
+
+	std::cout << "dependency_network: sock_fd: " << sockfd << std::endl;
+	std::cout << "dependency_network: addrLen: " << addrLen << std::endl;
+	
+	if (addr.sa_family == AF_INET) {
+		sockaddr_in *sin4 = reinterpret_cast<sockaddr_in*>(&addr);
+		inet_ntop(AF_INET, &sin4->sin_addr, ipAddress, INET6_ADDRSTRLEN);
+		
+		std::cout << "dependency_network: socket connect called with IPv4 " <<
+			"socket address. IP: " << std::string(ipAddress) << 
+			", port: " << sin4->sin_port << "." << std::endl;
+	} else if (addr.sa_family == AF_INET6) {
+		sockaddr_in6 *sin6 = reinterpret_cast<sockaddr_in6*>(&addr);
+		inet_ntop(AF_INET6, &sin6->sin6_addr, ipAddress, INET6_ADDRSTRLEN);
+		
+		std::cout << "dependency_network: socket connect called with IPv6 " <<
+			"socket address. IP: " << std::string(ipAddress) << 
+			", port: " << sin6->sin6_port << "." << std::endl;
+	} else {
+		std::cerr << "dependency_network: sockaddr fetched but is of an " <<
+			"unknown family." << std::endl;
+	}
 }
 
 bool init_plugin(void *self) {

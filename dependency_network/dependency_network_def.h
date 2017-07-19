@@ -57,7 +57,7 @@ void cbf_socketCallEnter(CPUState *cpu, target_ulong pc, int32_t call,
 /// </param>
 void cbf_socketCallEnter(CPUState *cpu, target_ulong pc, int32_t call,
 		uint32_t args);
-		
+
 /// <summary>
 /// Returns a vector of size <paramref="size"> containing the values of T read 
 /// from the virtual memory address <paramref="addr">. This method assumes that
@@ -77,11 +77,24 @@ void cbf_socketCallEnter(CPUState *cpu, target_ulong pc, int32_t call,
 /// elements returned in the vector.
 /// </param>
 /// <returns>
-/// The vector of size <paramref="size"> containing the arguments fetched from
-/// <paramref="args">.
+/// The vector of size <paramref="size"> containing the values fetched from
+/// <paramref="addr">.
 /// </returns>
 template<typename T>
 std::vector<T> getMemoryValues(CPUState *cpu, uint32_t addr, uint32_t size);
+
+/// <summary>
+/// Function which should be called when a socket connect() system call is
+/// encountered.
+/// </summary>
+/// <param name="cpu">
+/// The CPU State pointer.
+/// </param>
+/// <param name="args">
+/// The virtual memory address to the start of the arguments for the connect()
+/// system call.
+/// </param>
+void onSocketConnect(CPUState *cpu, uint32_t args);
 
 extern "C" {
 	/// <summary>
