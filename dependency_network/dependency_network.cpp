@@ -97,6 +97,34 @@ bool init_plugin(void *self) {
 	
 	panda_require("syscalls2");
 	
+	/// Parse Arguments:
+	/// "source_ip"   : The source IP address, defaults to "0.0.0.0"
+	/// "source_port" : The source port, defaults to "9999"
+	/// "sink_ip"     : The sink IP address, defaults to "0.0.0.0"
+	/// "sink_port"   : The sink port, defaults to "9999"
+	/// "debug"       : Should debug mode be used? Defaults to false
+	auto args = panda_get_args("dependency_network");
+	dependency_network.source.ip = panda_parse_string_opt(args, 
+		"source_ip", "0.0.0.0", "source ip address");
+	dependency_network.source.port = (unsigned short)panda_parse_uint32_opt(
+		args, "source_port", 9999, "source port number");
+	dependency_network.sink.ip = panda_parse_string_opt(args, 
+		"sink_ip", "0.0.0.0", "sink ip address");
+	dependency_network.sink.port = (unsigned short)panda_parse_uint32_opt(
+		args, "sink_port", 9999, "sink port number");
+	dependency_network.debug = panda_parse_bool_opt(args, 
+		"debug", "debug mode");
+	std::cout << "dependency_network: source IP: " << 
+		dependency_network.source.ip << std::endl;
+	std::cout << "dependency_network: source port: " << 
+		dependency_network.source.port << std::endl;
+	std::cout << "dependency_network: sink IP: " << 
+		dependency_network.sink.ip << std::endl;
+	std::cout << "dependency_network: sink port: " << 
+		dependency_network.sink.port << std::endl;
+	std::cout << "dependency_network: debug: " << 
+		dependency_network.debug << std::endl;
+	
 	// Register SysCalls2 Callback Functions
 	PPP_REG_CB("syscalls2", on_sys_socketcall_enter, cbf_socketCallEnter);
 	PPP_REG_CB("syscalls2", on_sys_socketcall_return, cbf_socketCallReturn);

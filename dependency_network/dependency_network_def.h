@@ -18,8 +18,17 @@ extern "C" {
 	#include "taint2/taint2_ext.h"
 }
 
+struct Dependency_Network_Target {
+	std::string ip;                    // The IP Address as a string
+	unsigned short port;               // The port
+};
+
 struct Dependency_Network {
 	void *plugin_ptr = nullptr;        // The plugin pointer
+	bool debug = false;                // Is running in debug?
+	
+	Dependency_Network_Target source;  // The source address & port
+	Dependency_Network_Target sink;    // The sink address & port
 };
 
 /// <summary>
