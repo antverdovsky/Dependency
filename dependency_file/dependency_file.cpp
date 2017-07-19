@@ -95,8 +95,22 @@ void cbf_pwrite64Return(CPUState *cpu, target_ulong pc, uint32_t fd,
 
 void cbf_openEnter(CPUState *cpu, target_ulong pc, uint32_t fileAddr, int32_t
 		flags, int32_t mode) {
-	std::string fileName = getGuestString(cpu, fileAddr, 256);
+	std::string fileName = getGuestString(cpu, 256, fileAddr);
 	logFileCallback("open_enter", fileName);
+	
+	// Since open may only contain the file name and not the full directory,
+	// we just search for the name of the file in the source file string. Note
+	// that this means that we think we have an open called for the source file
+	// when we really don't. This is fine since this just means that we will
+	// start tainting sooner than necessary.
+	if (!fileName.empty() && !sawOpenOfSource &&
+			dependency_file.sourceFile.find(fileName) != std::string::npos) {
+		std::cout << "dependency_file: ***saw open enter of source file***" << 
+			std::endl;
+		
+		dependency_file.enableTaintAt = rr_get_guest_instr_count();
+		sawOpenOfSource = true;
+	}
 }
 
 void cbf_readEnter(CPUState *cpu, target_ulong pc, uint32_t fd, 
@@ -162,7 +176,7 @@ std::string getFileName(CPUState *cpu, int fd, bool debug) {
 std::string getGuestString(CPUState *cpu, size_t maxSize, target_ulong addr) {
 	// Create an empty string with all zeros
 	std::string str(maxSize, '0');
-	
+
 	for (size_t i = 0; i < maxSize; ++i) {
 		// Fetch the unsigned integer character from PANDA's memory. We do this
 		// by specifiying the CPU state, the address at which we want to read
@@ -312,10 +326,12 @@ bool init_plugin(void *self) {
 }
 
 void uninit_plugin(void *self) {
+	std::cout << "dependency_file: saw open of source? " << sawOpenOfSource <<
+		std::endl;
 	std::cout << "dependency_file: saw read of source? " << sawReadOfSource <<
 		std::endl;
 	std::cout << "dependency_file: saw write of sink? " << sawWriteOfSink <<
 		std::endl;
-	std::cout << "dependency_file: dependency detechted? " << dependency <<
+	std::cout << "dependency_file: dependency detected? " << dependency <<
 		std::endl;
 }

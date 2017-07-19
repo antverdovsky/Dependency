@@ -2,6 +2,7 @@
 #define DEPENDENCY_FILE_DEF_H
 
 #include <map>
+#include <stdint.h>
 #include <string>
 
 #include "panda/plugin.h"
@@ -25,7 +26,8 @@ struct Dependency_File {
 	std::string sourceFile = "";       // The source file name (Independent)
 	std::string sinkFile = "";         // The sink file name (Dependent)
 	bool debug = false;                // Print debug information?
-	int enableTaintAt = 1;             // Instruction # @ which to enable taint
+	target_ulong enableTaintAt = 
+		UINT32_MAX;                    // Instruction # @ which to enable taint
 };
 
 /// <summary>
@@ -376,6 +378,7 @@ extern "C" {
 Dependency_File dependency_file;                // The Plugin Structure
 std::map<target_ulong, OsiProc> processesMap;   // The Guest Processes
 
+bool sawOpenOfSource = false;                   // Was source file opened?
 bool sawReadOfSource = false;                   // Was source file read from?
 bool sawWriteOfSink = false;                    // Was sink file written to?
 bool dependency = false;                        // Is sink dependent on source?
