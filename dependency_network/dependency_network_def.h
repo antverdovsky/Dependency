@@ -54,10 +54,28 @@ struct Dependency_Network_Target {
 struct Dependency_Network {
 	void *plugin_ptr = nullptr;        // The plugin pointer
 	bool debug = false;                // Is running in debug?
+	target_ulong enableTaintAt = 1;    // Instruction # @ which to enable taint
 	
 	Dependency_Network_Target source;  // The source address & port
 	Dependency_Network_Target sink;    // The sink address & port
 };
+
+/// <summary>
+/// Callback function which can be called before a PANDA block translation.
+/// This particular function is used to enable the taint2 plugin if the current
+/// instruction count exceeds the enable taint at property of the dependency
+/// file plugin.
+/// </summary>
+/// <param name="cpu">
+/// The CPU state pointer.
+/// </param>
+/// <param name="pc">
+/// The program counter.
+/// </param>
+/// <returns>
+/// Zero always.
+/// </returns>
+int cbf_beforeBlockTranslate(CPUState *cpu, target_ulong pc);
 
 /// <summary>
 /// Callback function for the "on_sys_socketcall_enter_t" system call.
@@ -211,6 +229,22 @@ template<typename T>
 std::vector<T> getMemoryValues(CPUState *cpu, uint32_t addr, uint32_t size);
 
 /// <summary>
+/// Taints the contents of the buffer at the specified virtual address and of 
+/// the specified length. This function does nothing if taint2 is not currently
+/// enabled.
+/// </summary>
+/// <param name="cpu">
+/// The CPU State pointer.
+/// </param>
+/// <param name="vAddr">
+/// The virtual address of the buffer.
+/// </param>
+/// <param name="length">
+/// The length of the buffer, in bytes.
+/// </param>
+void labelBufferContents(CPUState *cpu, target_ulong vAddr, uint32_t length);
+
+/// <summary>
 /// Function which should be called when a socket connect() system call is
 /// encountered.
 /// </summary>
@@ -222,6 +256,26 @@ std::vector<T> getMemoryValues(CPUState *cpu, uint32_t addr, uint32_t size);
 /// system call.
 /// </param>
 void onSocketConnect(CPUState *cpu, uint32_t args);
+
+/// <summary>
+/// Queries the contents of the buffer at the specified virtual address and of
+/// the specified length for taint. This function does nothing if taint2 is not
+/// currently enabled, and returns a negative integer in this case.
+/// </summary>
+/// <param name="cpu">
+/// The CPU State pointer.
+/// </param>
+/// <param name="vAddr">
+/// The virtual address of the buffer.
+/// </param>
+/// <param name="length">
+/// The length of the buffer, in bytes.
+/// </param>
+/// <returns>
+/// The number of bytes which are tainted in the buffer, or a negative integer
+/// if taint2 is not enabled.
+/// </returns>
+int queryBufferContents(CPUState *cpu, target_ulong vAddr, uint32_t length);
 
 extern "C" {
 	/// <summary>

@@ -14,6 +14,23 @@ bool Dependency_Network_Target::operator!=(
 	return (this->ip != rhs.ip) || (this->port != rhs.port);
 }
 
+int cbf_beforeBlockTranslate(CPUState *cpu, target_ulong pc) {
+	// Enable taint if current instruction is g.t. when we are supposed to
+	// enable taint.
+	int instr = rr_get_guest_instr_count();
+	if (!taint2_enabled() && instr > dependency_network.enableTaintAt) {
+		if (dependency_network.debug) {
+			std::cout << "dependency_network: enabling taint at instruction " 
+				<< instr << "." << std::endl;
+				
+		}
+		
+		taint2_enable_taint();
+	}
+	
+	return 0;
+}
+
 void cbf_socketCallEnter(CPUState *cpu, target_ulong pc, int32_t call,
 		uint32_t args) {
 	
@@ -107,6 +124,36 @@ std::vector<T> getMemoryValues(CPUState *cpu, uint32_t addr, uint32_t size) {
 	return arguments;
 }
 
+void labelBufferContents(CPUState *cpu, target_ulong vAddr, uint32_t length) {
+	if (!taint2_enabled()) return;
+	if (dependency_network.debug) {
+		std::cout << "dependency_network: labeling " << length << " bytes " <<
+			"starting from virtual address " << vAddr << "." << std::endl;
+	}
+	
+	int bytesTainted = 0; // Number of bytes that were tainted
+	for (auto i = 0; i < length; ++i) {
+		// Convert the virtual address to a physical, assert it is valid, if
+		// not skip this byte.
+		hwaddr pAddr = panda_virt_to_phys(cpu, vAddr + i);
+		if (pAddr == (hwaddr)(-1)) {
+			std::cerr << "dependency_network: unable to taint at address: " <<
+				vAddr << " (virtual), " << pAddr << " (physical)." << 
+				std::endl;
+			continue;
+		}
+		// Else, taint at the physical address specified
+		taint2_label_ram(pAddr, 1);
+		++bytesTainted;
+	}
+	
+	if (dependency_network.debug) {
+		std::cout << "dependency_network: labeled " << bytesTainted << 
+			" out of " << length << " bytes at virtual address " << vAddr << 
+			std::endl;
+	}
+}
+
 void onSocketConnect(CPUState *cpu, uint32_t args) {
 	std::cout << "dependency_network: socket_connect called at " <<
 		rr_get_guest_instr_count() << "." << std::endl;
@@ -155,6 +202,37 @@ void onSocketConnect(CPUState *cpu, uint32_t args) {
 	}
 }
 
+int queryBufferContents(CPUState *cpu, target_ulong vAddr, uint32_t length) {
+	if (!taint2_enabled()) return -1;
+	if (dependency_network.debug) {
+		std::cout << "dependency_network: querying " << length << " bytes " <<
+			"starting from virtual address " << vAddr << "." << std::endl;
+	}
+	
+	int bytesWithTaint = 0; // Number of bytes which were tainted
+	for (auto i = 0; i < length; ++i) {
+		// Convert the virtual address to a physical, assert it is valid, if
+		// not skip this byte.
+		hwaddr pAddr = panda_virt_to_phys(cpu, vAddr + i);
+		if (pAddr == (hwaddr)(-1)) {
+			std::cerr << "dependency_network: unable to query at address: " <<
+				vAddr << " (virtual), " << pAddr << " (physical)." << 
+				std::endl;
+			continue;
+		}
+		// Else, query the taint, increment counter if tainted
+		uint32_t cardinality = taint2_query_ram(pAddr);
+		if (cardinality > 0) ++bytesWithTaint;
+	}
+	
+	if (dependency_network.debug) {
+		std::cout << "dependency_network: found " << bytesWithTaint << 
+			" tainted bytes out of " << length << " at virtual address " <<
+			vAddr << std::endl;
+	}
+	return bytesWithTaint;
+}
+
 bool init_plugin(void *self) {
 #ifdef TARGET_I386
 	dependency_network.plugin_ptr = self;
@@ -167,6 +245,9 @@ bool init_plugin(void *self) {
 	assert(init_osi_linux_api());
 	
 	panda_require("syscalls2");
+	
+	panda_require("taint2");
+	assert(init_taint2_api());
 	
 	/// Parse Arguments:
 	/// "source_ip"   : The source IP address, defaults to "0.0.0.0"
@@ -203,6 +284,12 @@ bool init_plugin(void *self) {
 	PPP_REG_CB("syscalls2", on_sys_pwrite64_return, cbf_pwrite64Return);
 	PPP_REG_CB("syscalls2", on_sys_read_return, cbf_readReturn);
 	PPP_REG_CB("syscalls2", on_sys_write_return, cbf_writeReturn);
+	
+	/// Register the Before Block Execution Functions
+	panda_cb pcb;
+	
+	pcb.before_block_translate = cbf_beforeBlockTranslate;
+	panda_register_callback(self, PANDA_CB_BEFORE_BLOCK_TRANSLATE, pcb);
 	
 	return true;
 #else
