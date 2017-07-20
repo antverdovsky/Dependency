@@ -38,8 +38,8 @@ struct Dependency_Network_Target {
 	bool operator==(const Dependency_Network_Target &rhs);
 
 	/// <summary>
-	/// Compares the specified Dependency_Network_Target instance for inequality
-	/// to this instance.
+	/// Compares the specified Dependency_Network_Target instance for 
+	/// inequality to this instance.
 	/// </summary>
 	/// <param name="rhs">
 	/// The right hand side of the operator to which this instance is to be
@@ -54,7 +54,8 @@ struct Dependency_Network_Target {
 struct Dependency_Network {
 	void *plugin_ptr = nullptr;        // The plugin pointer
 	bool debug = false;                // Is running in debug?
-	target_ulong enableTaintAt = 1;    // Instruction # @ which to enable taint
+	target_ulong enableTaintAt =       // Instruction # @ which to enable taint
+		UINT32_MAX;
 	
 	Dependency_Network_Target source;  // The source address & port
 	Dependency_Network_Target sink;    // The sink address & port

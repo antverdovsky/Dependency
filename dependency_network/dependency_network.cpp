@@ -200,6 +200,16 @@ void onSocketConnect(CPUState *cpu, uint32_t args) {
 		std::cout << "dependency_network: connect called for target IP: " << 
 			target.ip << ", and target port: " << target.port << std::endl;
 	}
+
+	// If a connection to a source or sink is detected, turn on tainting
+	// to be ready to intercept read/write and send/recv.
+	if (target == dependency_network.source) {
+		std::cout << "***saw connect to source target***" << std::endl;
+		dependency_network.enableTaintAt = rr_get_guest_instr_count();
+	} else if (target == dependency_network.sink) {
+		std::cout << "***saw connect to sink target***" << std::endl;
+		dependency_network.enableTaintAt = rr_get_guest_instr_count();
+	}
 }
 
 int queryBufferContents(CPUState *cpu, target_ulong vAddr, uint32_t length) {
