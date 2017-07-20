@@ -1,7 +1,18 @@
 #include "dependency_network_def.h"
 
 #include <iostream>
+#include <stdexcept>
 #include <linux/net.h>
+
+bool Dependency_Network_Target::operator==(
+		const Dependency_Network_Target &rhs) {
+	return (this->ip == rhs.ip) && (this->port == rhs.port);
+}
+
+bool Dependency_Network_Target::operator!=(
+		const Dependency_Network_Target &rhs) {
+	return (this->ip != rhs.ip) || (this->port != rhs.port);
+}
 
 void cbf_socketCallEnter(CPUState *cpu, target_ulong pc, int32_t call,
 		uint32_t args) {
@@ -17,6 +28,62 @@ void cbf_socketCallReturn(CPUState *cpu, target_ulong pc, int32_t call,
 	}
 			
 	if (call == SYS_CONNECT) onSocketConnect(cpu, args);
+}
+
+void cbf_pread64Return(CPUState *cpu, target_ulong pc, uint32_t fd,
+		uint32_t buffer, uint32_t count, uint64_t pos) {
+	Dependency_Network_Target target;
+	try {
+		target = targets.at(std::make_pair(panda_current_asid(cpu), fd));
+	} catch (const std::out_of_range &e) {
+		std::cerr << "dependency_network: pread64_return called, but file"
+			<< "descriptor " << fd << " is unknown." << std::endl;
+		return;
+	}
+	
+	if (target == dependency_network.source) {
+		std::cout << "dependency_network: ***saw read return of source " << 
+			"target***" << std::endl;
+		sawReadOfSource = true;
+	} else {
+		if (dependency_network.debug) {
+			std::cout << "dependency_network: saw read of file/socket with " <<
+				"fd: " << fd << std::endl;
+		}
+	}
+}
+
+void cbf_pwrite64Return(CPUState *cpu, target_ulong pc, uint32_t fd,
+		uint32_t buffer, uint32_t count, uint64_t pos) {
+	Dependency_Network_Target target;
+	try {
+		target = targets.at(std::make_pair(panda_current_asid(cpu), fd));
+	} catch (const std::out_of_range &e) {
+		std::cerr << "dependency_network: pwrite64_return called, but file" <<
+			" descriptor " << fd << " is unknown." << std::endl;
+		return;
+	}
+	
+	if (target == dependency_network.sink) {
+		std::cout << "dependency_network: ***saw write return of sink " << 
+			"target***" << std::endl; 
+		sawWriteOfSink = true;
+	} else {
+		if (dependency_network.debug) {
+			std::cout << "dependency_network: saw write of file/socket with " <<
+				"fd: " << fd << std::endl;
+		}
+	}
+}
+
+void cbf_readReturn(CPUState *cpu, target_ulong pc, uint32_t fd, 
+		uint32_t buffer, uint32_t count) {
+	cbf_pread64Return(cpu, pc, fd, buffer, count, 0);
+}
+
+void cbf_writeReturn(CPUState *cpu, target_ulong pc, uint32_t fd, 
+		uint32_t buffer, uint32_t count) {
+	cbf_pwrite64Return(cpu, pc, fd, buffer, count, 0);
 }
 
 template<typename T>
@@ -46,15 +113,7 @@ void onSocketConnect(CPUState *cpu, uint32_t args) {
 	
 	// Get the arguments from the args virtual memory
 	auto arguments = getMemoryValues<uint32_t>(cpu, args, 3);
-	
-	// Get the first and third arguments
-	int sockfd = arguments[0];
-	socklen_t addrLen = arguments[2]; 
-	
-	// Print sock_fd and address length
-	std::cout << "dependency_network: sock_fd: " << sockfd << std::endl;
-	std::cout << "dependency_network: addrLen: " << addrLen << std::endl;
-	
+
 	// Get the sockaddr structure from the arguments. The virtual memory 
 	// address to the sockaddr structure is stored in the second argument of
 	// the args passed to connect(). Use that address to get the pointer to the
@@ -85,12 +144,15 @@ void onSocketConnect(CPUState *cpu, uint32_t args) {
 	
 	// Convert IP address & port to Dependency_Network_Target. Add the Target
 	// to the targets map.
+	int sockfd = arguments[0];
 	Dependency_Network_Target target = { std::string(ipAddress), port };
 	targets[std::make_pair(panda_current_asid(cpu), sockfd)] = target;
 	
 	// Print IP address and port
-	std::cout << "dependency_network: IP address: " << target.ip << std::endl;
-	std::cout << "dependency_network: port: " << target.port << std::endl;
+	if (dependency_network.debug) {
+		std::cout << "dependency_network: connect called for target IP: " << 
+			target.ip << ", and target port: " << target.port << std::endl;
+	}
 }
 
 bool init_plugin(void *self) {
@@ -137,6 +199,10 @@ bool init_plugin(void *self) {
 	// Register SysCalls2 Callback Functions
 	PPP_REG_CB("syscalls2", on_sys_socketcall_enter, cbf_socketCallEnter);
 	PPP_REG_CB("syscalls2", on_sys_socketcall_return, cbf_socketCallReturn);
+	PPP_REG_CB("syscalls2", on_sys_pread64_return, cbf_pread64Return);
+	PPP_REG_CB("syscalls2", on_sys_pwrite64_return, cbf_pwrite64Return);
+	PPP_REG_CB("syscalls2", on_sys_read_return, cbf_readReturn);
+	PPP_REG_CB("syscalls2", on_sys_write_return, cbf_writeReturn);
 	
 	return true;
 #else
@@ -147,12 +213,8 @@ bool init_plugin(void *self) {
 }
 
 void uninit_plugin(void *self) {
-	for (auto key_value : targets) {
-		auto asid = key_value.first.first;
-		auto fd = key_value.first.second;
-		auto target = key_value.second;
-		
-		std::cout << "ASID: " << asid << ", FD: " << fd << ", Target IP: " << 
-			target.ip << ", Target Port: " << target.port << std::endl;
-	}
+	std::cout << "dependency_network: saw read of source? " << 
+		sawReadOfSource << std::endl;
+	std::cout << "dependency_network: saw write of sink? " << 
+		sawWriteOfSink << std::endl;
 }
