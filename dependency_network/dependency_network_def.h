@@ -1,7 +1,9 @@
 #ifndef DEPENDENCY_NETWORK_H
 #define DEPENDENCY_NETWORK_H
 
+#include <map>
 #include <vector>
+#include <utility>
 
 #include "panda/plugin.h"
 #include "panda/plugin_plugin.h"
@@ -126,6 +128,9 @@ extern "C" {
 	void uninit_plugin(void *self);
 }
 
-Dependency_Network dependency_network;
+Dependency_Network dependency_network;     // The Plugin Structure
+std::map<                                  // The map of the unions of ASIDs
+	std::pair<target_ulong, uint32_t>,     // FDs to the network targets.
+	Dependency_Network_Target> targets;
 
 #endif
