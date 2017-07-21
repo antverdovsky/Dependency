@@ -306,5 +306,6 @@ std::map<                                  // The map of the unions of ASIDs
 
 bool sawReadOfSource = false;              // Was source target read from?
 bool sawWriteOfSink = false;               // Was sink target written to?
+bool dependency = false;                   // Was dependency seen?
 
 #endif

@@ -62,6 +62,8 @@ void cbf_pread64Return(CPUState *cpu, target_ulong pc, uint32_t fd,
 		std::cout << "dependency_network: ***saw read return of source " << 
 			"target***" << std::endl;
 		sawReadOfSource = true;
+		
+		labelBufferContents(cpu, buffer, count);
 	} else {
 		if (dependency_network.debug) {
 			std::cout << "dependency_network: saw read of file/socket with " <<
@@ -85,10 +87,16 @@ void cbf_pwrite64Return(CPUState *cpu, target_ulong pc, uint32_t fd,
 		std::cout << "dependency_network: ***saw write return of sink " << 
 			"target***" << std::endl; 
 		sawWriteOfSink = true;
+		
+		int numTainted = queryBufferContents(cpu, buffer, count);
+		std::cout << "dependency_file: " << numTainted << " tainted bytes " <<
+			"written to " << target.ip << "." << std::endl;
+
+		if (numTainted > 0) dependency = true;
 	} else {
 		if (dependency_network.debug) {
-			std::cout << "dependency_network: saw write of file/socket with " <<
-				"fd: " << fd << std::endl;
+			std::cout << "dependency_network: saw write of file/socket with " 
+				<< "fd: " << fd << std::endl;
 		}
 	}
 }
@@ -314,4 +322,6 @@ void uninit_plugin(void *self) {
 		sawReadOfSource << std::endl;
 	std::cout << "dependency_network: saw write of sink? " << 
 		sawWriteOfSink << std::endl;
+	std::cout << "dependency_network: saw dependency? " << 
+		dependency << std::endl;
 }
