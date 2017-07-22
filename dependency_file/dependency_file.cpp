@@ -33,21 +33,9 @@ int cbf_beforeBlockTranslate(CPUState *cpu, target_ulong pc) {
 	return 0;
 }
 
-void cbf_pread64Enter(CPUState *cpu, target_ulong pc, uint32_t fd, 
-		uint32_t buffer, uint32_t count, uint64_t pos) {
-	std::string fileName = getFileName(cpu, fd, dependency_file.debug);
-	logFileCallback("pread64_enter", fileName);
-	
-	if (fileName == dependency_file.sourceFile) {
-		std::cout << "dependency_file: ***saw read enter of source file***" << 
-			std::endl;
-		sawReadOfSource = true;
-	}
-}
-
 void cbf_pread64Return(CPUState *cpu, target_ulong pc, uint32_t fd,
 		uint32_t buffer, uint32_t count, uint64_t pos) {
-	std::string fileName = getFileName(cpu, fd, dependency_file.debug);
+	std::string fileName = getFileName(cpu, fd);
 	logFileCallback("pread64_return", fileName);
 	
 	if (fileName == dependency_file.sourceFile) {
@@ -59,14 +47,21 @@ void cbf_pread64Return(CPUState *cpu, target_ulong pc, uint32_t fd,
 		// actual buffer length is stored in register EAX (located at index 
 		// zero in CPU's registers array).
 		int actualCount = ((CPUArchState*)cpu->env_ptr)->regs[0];
-		labelBufferContents(cpu, buffer, actualCount);
+		int numTainted = labelBufferContents(cpu, buffer, actualCount);
+		if (dependency_file.debug) {
+			std::cout << "dependency_file: " << numTainted << 
+				" tainted bytes read from \"" << fileName << "\"." << 
+				std::endl;
+		}
+		
+		taintedBytesLabeled += numTainted;
 	}
 }
 
-void cbf_pwrite64Enter(CPUState *cpu, target_ulong pc, uint32_t fd,
+void cbf_pwrite64Return(CPUState *cpu, target_ulong pc, uint32_t fd,
 		uint32_t buffer, uint32_t count, uint64_t pos) {
-	std::string fileName = getFileName(cpu, fd, dependency_file.debug);
-	logFileCallback("pwrite64_enter", fileName);
+	std::string fileName = getFileName(cpu, fd);
+	logFileCallback("pwrite64_return", fileName);
 	
 	if (fileName == dependency_file.sinkFile) {
 		std::cout << "dependency_file: ***saw pwrite enter of sink file***" << 
@@ -74,22 +69,13 @@ void cbf_pwrite64Enter(CPUState *cpu, target_ulong pc, uint32_t fd,
 		sawWriteOfSink = true;
 		
 		int numTainted = queryBufferContents(cpu, buffer, count);
-		std::cout << "dependency_file: " << numTainted << " tainted bytes " <<
-			"written to " << fileName << "." << std::endl;
+		if (dependency_file.debug) {
+			std::cout << "dependency_file: " << numTainted << 
+				" tainted bytes written to \"" << fileName << "\"." << 
+				std::endl;
+		}
 
-		if (numTainted > 0) dependency = true;
-	}		
-}
-
-void cbf_pwrite64Return(CPUState *cpu, target_ulong pc, uint32_t fd,
-		uint32_t buffer, uint32_t count, uint64_t pos) {
-	std::string fileName = getFileName(cpu, fd, dependency_file.debug);
-	logFileCallback("pwrite64_return", fileName);
-	
-	if (fileName == dependency_file.sinkFile) {
-		std::cout << "dependency_file: ***saw pwrite return of sink file***" << 
-			std::endl;
-		sawWriteOfSink = true;
+		taintedBytesQueried += numTainted;
 	}
 }
 
@@ -113,32 +99,17 @@ void cbf_openEnter(CPUState *cpu, target_ulong pc, uint32_t fileAddr, int32_t
 	}
 }
 
-void cbf_readEnter(CPUState *cpu, target_ulong pc, uint32_t fd, 
-		uint32_t buffer, uint32_t count) {
-	// Since read is just pread which starts at zero, call the callback 
-	// function for pread with zero as the starting position.
-	cbf_pread64Enter(cpu, pc, fd, buffer, count, 0);
-}
-
 void cbf_readReturn(CPUState *cpu, target_ulong pc, uint32_t fd, 
 		uint32_t buffer, uint32_t count) {
-	// See cbf_readEnter for explanation
 	cbf_pread64Return(cpu, pc, fd, buffer, count, 0);
-}
-
-void cbf_writeEnter(CPUState *cpu, target_ulong pc, uint32_t fd, 
-		uint32_t buffer, uint32_t count) {
-	// See cbf_readEnter for explanation
-	cbf_pwrite64Enter(cpu, pc, fd, buffer, count, 0);
 }
 
 void cbf_writeReturn(CPUState *cpu, target_ulong pc, uint32_t fd,
 		uint32_t buffer, uint32_t count) {
-	// See cbf_readEnter for explanation
 	cbf_pwrite64Return(cpu, pc, fd, buffer, count, 0);
 }
 
-std::string getFileName(CPUState *cpu, int fd, bool debug) {
+std::string getFileName(CPUState *cpu, int fd) {
 	// Get current ASID from PANDA
 	target_ulong asid = panda_current_asid(cpu);
 
@@ -150,7 +121,7 @@ std::string getFileName(CPUState *cpu, int fd, bool debug) {
 		// continue with excecution.
 		char *fileNamePtr = osi_linux_fd_to_filename(cpu, &process, fd);
 		if (!fileNamePtr) {
-			if (debug) {
+			if (dependency_file.debug) {
 				std::cerr << "dependency_file: osi_linux_fd_to_filename failed"
 					<< " for fd " << fd << ", unable to get file name." << 
 					std::endl;
@@ -165,7 +136,7 @@ std::string getFileName(CPUState *cpu, int fd, bool debug) {
 	}
 	// Else, we do not know what this process is and so we cannot get the name
 	// of the file.
-	if (debug) {
+	if (dependency_file.debug) {
 		std::cerr << "dependency_file: no process with asid " << asid << 
 			" found, unable to get file name." << std::endl;
 	}
@@ -198,8 +169,8 @@ std::string getGuestString(CPUState *cpu, size_t maxSize, target_ulong addr) {
 	return str;
 }
 
-void labelBufferContents(CPUState *cpu, target_ulong vAddr, uint32_t length) {
-	if (!taint2_enabled()) return;
+int labelBufferContents(CPUState *cpu, target_ulong vAddr, uint32_t length) {
+	if (!taint2_enabled()) return 0;
 	if (dependency_file.debug) {
 		std::cout << "dependency_file: labeling " << length << " bytes " <<
 			"starting from virtual address " << vAddr << "." << std::endl;
@@ -210,7 +181,7 @@ void labelBufferContents(CPUState *cpu, target_ulong vAddr, uint32_t length) {
 		// Convert the virtual address to a physical, assert it is valid, if
 		// not skip this byte.
 		hwaddr pAddr = panda_virt_to_phys(cpu, vAddr + i);
-		if (pAddr == (hwaddr)(-1)) {
+		if (pAddr == (hwaddr)(-1) && dependency_file.debug) {
 			std::cerr << "dependency_file: unable to taint at address: " <<
 				vAddr << " (virtual), " << pAddr << " (physical)." << 
 				std::endl;
@@ -225,6 +196,7 @@ void labelBufferContents(CPUState *cpu, target_ulong vAddr, uint32_t length) {
 		std::cout << "dependency_file: labeled " << bytesTainted << " out of "
 			<< length << " bytes at virtual address " << vAddr << std::endl;
 	}
+	return bytesTainted;
 }
 
 void logFileCallback(const std::string &event, const std::string &file) {
@@ -247,8 +219,8 @@ int queryBufferContents(CPUState *cpu, target_ulong vAddr, uint32_t length) {
 		// Convert the virtual address to a physical, assert it is valid, if
 		// not skip this byte.
 		hwaddr pAddr = panda_virt_to_phys(cpu, vAddr + i);
-		if (pAddr == (hwaddr)(-1)) {
-			std::cerr << "dependency_file: unable to taint at address: " <<
+		if (pAddr == (hwaddr)(-1) && dependency_file.debug) {
+			std::cerr << "dependency_file: unable to query at address: " <<
 				vAddr << " (virtual), " << pAddr << " (physical)." << 
 				std::endl;
 			continue;
@@ -293,19 +265,17 @@ bool init_plugin(void *self) {
 		"sink.txt", "sink file name");
 	dependency_file.debug = panda_parse_bool_opt(args, "debug",
 		"debug mode");
-	std::cout << "Source File: " << dependency_file.sourceFile << std::endl;
-	std::cout << "Sink File: " << dependency_file.sinkFile << std::endl;
+	std::cout << "Source File: \"" << dependency_file.sourceFile << "\"" <<
+		std::endl;
+	std::cout << "Sink File: \"" << dependency_file.sinkFile << "\"" <<
+		std::endl;
 	std::cout << "Debug: " << dependency_file.debug << std::endl;
 	
 	// Register SysCalls2 Callback Functions
 	PPP_REG_CB("syscalls2", on_sys_open_enter, cbf_openEnter);
-	PPP_REG_CB("syscalls2", on_sys_pread64_enter, cbf_pread64Enter);
 	PPP_REG_CB("syscalls2", on_sys_pread64_return, cbf_pread64Return);
-	PPP_REG_CB("syscalls2", on_sys_pwrite64_enter, cbf_pwrite64Enter);
 	PPP_REG_CB("syscalls2", on_sys_pwrite64_return, cbf_pwrite64Return);
-	PPP_REG_CB("syscalls2", on_sys_read_enter, cbf_readEnter);
 	PPP_REG_CB("syscalls2", on_sys_read_return, cbf_readReturn);
-	PPP_REG_CB("syscalls2", on_sys_write_enter, cbf_writeEnter);
 	PPP_REG_CB("syscalls2", on_sys_write_return, cbf_writeReturn);
 	
 	/// Register the Before Block Execution Functions
@@ -332,6 +302,10 @@ void uninit_plugin(void *self) {
 		std::endl;
 	std::cout << "dependency_file: saw write of sink? " << sawWriteOfSink <<
 		std::endl;
-	std::cout << "dependency_file: dependency detected? " << dependency <<
-		std::endl;
+	std::cout << "dependency_file: number of tainted bytes read from source: "
+		<< taintedBytesLabeled << std::endl;
+	std::cout << "dependency_file: number of tainted bytes written to sink: " 
+		<< taintedBytesQueried << std::endl;
+	std::cout << "dependency_file: dependency detected? " << 
+		(taintedBytesQueried > 0) << std::endl;
 }

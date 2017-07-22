@@ -64,30 +64,6 @@ int cbf_beforeBlockExectuion(CPUState *cpu, TranslationBlock *tB);
 int cbf_beforeBlockTranslate(CPUState *cpu, target_ulong pc);
 
 /// <summary>
-/// Callback function for the syscalls2 "on_sys_pread64_enter_t" event.
-/// </summary>
-/// <param name="cpu">
-/// The CPU state pointer.
-/// </param>
-/// <param name="pc">
-/// The program counter.
-/// </param>
-/// <param name="fd">
-/// The file descriptor.
-/// </param>
-/// <param name="buffer">
-/// The virtual memory address of the read buffer.
-/// </param>
-/// <param name="count">
-/// The length of the read buffer.
-/// </param>
-/// <param name="pos">
-/// The position from which the file was read.
-/// </param>
-void cbf_pread64Enter(CPUState *cpu, target_ulong pc, uint32_t fd, 
-		uint32_t buffer, uint32_t count, uint64_t pos);
-
-/// <summary>
 /// Callback function for the syscalls2 "on_sys_pread64_return_t" event.
 /// </summary>
 /// <param name="cpu">
@@ -109,30 +85,6 @@ void cbf_pread64Enter(CPUState *cpu, target_ulong pc, uint32_t fd,
 /// The position from which the file was read.
 /// </param>
 void cbf_pread64Return(CPUState *cpu, target_ulong pc, uint32_t fd,
-		uint32_t buffer, uint32_t count, uint64_t pos);
-		
-/// <summary>
-/// Callback function for the syscalls2 "on_sys_pwrite64_enter_t" event.
-/// </summary>
-/// <param name="cpu">
-/// The CPU state pointer.
-/// </param>
-/// <param name="pc">
-/// The program counter.
-/// </param>
-/// <param name="fd">
-/// The file descriptor.
-/// </param>
-/// <param name="buffer">
-/// The virtual memory address of the read buffer.
-/// </param>
-/// <param name="count">
-/// The length of the read buffer.
-/// </param>
-/// <param name="pos">
-/// The position from which the file was read.
-/// </param>
-void cbf_pwrite64Enter(CPUState *cpu, target_ulong pc, uint32_t fd,
 		uint32_t buffer, uint32_t count, uint64_t pos);
 
 /// <summary>
@@ -179,27 +131,6 @@ void cbf_pwrite64Return(CPUState *cpu, target_ulong pc, uint32_t fd,
 /// </param>
 void cbf_openEnter(CPUState *cpu, target_ulong pc, uint32_t fileAddr, int32_t
 		flags, int32_t mode);
-		
-/// <summary>
-/// Callback function for the syscalls2 "on_sys_read_enter_t" event.
-/// </summary>
-/// <param name="cpu">
-/// The CPU state pointer.
-/// </param>
-/// <param name="pc">
-/// The program counter.
-/// </param>
-/// <param name="fd">
-/// The file descriptor.
-/// </param>
-/// <param name="buffer">
-/// The virtual memory address of the read buffer.
-/// </param>
-/// <param name="count">
-/// The length of the read buffer.
-/// </param>
-void cbf_readEnter(CPUState *cpu, target_ulong pc, uint32_t fd, 
-		uint32_t buffer, uint32_t count);
 
 /// <summary>
 /// Callback function for the syscalls2 "on_sys_read_return_t" event.
@@ -221,27 +152,6 @@ void cbf_readEnter(CPUState *cpu, target_ulong pc, uint32_t fd,
 /// </param>
 void cbf_readReturn(CPUState *cpu, target_ulong pc,
         uint32_t fd, uint32_t buf, uint32_t count);
-		
-/// <summary>
-/// Callback function for the syscals2 "on_sys_write_enter_t" event.
-/// </summary>
-/// <param name="cpu">
-/// The CPU State pointer.
-/// </param>
-/// <param name="pc">
-/// The program counter.
-/// </param>
-/// <param name="fd">
-/// The file descriptor.
-/// </param>
-/// <param name="buffer">
-/// The virtual memory address of the write buffer.
-/// </param>
-/// <param name="count">
-/// The length of the write buffer.
-/// </param>
-void cbf_writeEnter(CPUState *cpu, target_ulong pc, uint32_t fd, 
-		uint32_t buffer, uint32_t count);
 		
 /// <summary>
 /// Callback function for the syscalls2 "on_sys_write_return_t" event.
@@ -274,14 +184,11 @@ void cbf_writeReturn(CPUState *cpu, target_ulong pc, uint32_t fd,
 /// <param name="fd">
 /// The file descriptor for which the file name is to be fetched.
 /// </param>
-/// <param name="debug">
-/// Should errors be logged to the standard error stream? False by default.
-/// </param>
 /// <returns>
 /// The string containing the filename. If the file name could not be fetched,
 /// an empty string is returned instead.
 /// </returns>
-std::string getFileName(CPUState *cpu, int fd, bool debug = false);
+std::string getFileName(CPUState *cpu, int fd);
 
 /// <summary>
 /// Returns a string fetched from the specified memory address.
@@ -318,7 +225,10 @@ std::string getGuestString(CPUState *cpu, size_t maxSize, target_ulong addr);
 /// <param name="length">
 /// The length of the buffer, in bytes.
 /// </param>
-void labelBufferContents(CPUState *cpu, target_ulong vAddr, uint32_t length);
+/// <returns>
+/// The number of bytes labeled. Returns zero if taint2 is not enabled.
+/// </returns>
+int labelBufferContents(CPUState *cpu, target_ulong vAddr, uint32_t length);
 		
 /// <summary>
 /// Prints a string that a file was interacted with by some system call, if
@@ -381,6 +291,8 @@ std::map<target_ulong, OsiProc> processesMap;   // The Guest Processes
 bool sawOpenOfSource = false;                   // Was source file opened?
 bool sawReadOfSource = false;                   // Was source file read from?
 bool sawWriteOfSink = false;                    // Was sink file written to?
-bool dependency = false;                        // Is sink dependent on source?
+
+int taintedBytesLabeled = 0;                    // # of tainted source bytes
+int taintedBytesQueried = 0;                    // # of tainted sink bytes
 
 #endif
