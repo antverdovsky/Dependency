@@ -4,8 +4,15 @@
 #include "panda/plugin.h"
 #include "panda/plugin_plugin.h"
 
+#include "dependency_tracker_targets.h"
+
+#include <vector>
+
 struct Dependency_Tracker {
 	void *plugin_ptr = nullptr;        // The plugin pointer
+	
+	std::vector<Target> sources;       // All of the source targets
+	std::vector<Target> sinks;         // All of the sink targets
 };
 
 /// <summary>
