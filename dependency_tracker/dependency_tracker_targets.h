@@ -1,6 +1,7 @@
 #ifndef DEPENDENCY_TRACKER_TARGETS
 #define DEPENDENCY_TRACKER_TARGETS
 
+#include <ostream>
 #include <string>
 
 /// <summary>
@@ -23,6 +24,14 @@ public:
 	/// The type of target (sink or source).
 	/// </param>
 	Target(const TargetType &type);
+
+	/// <summary>
+	/// Simple method which returns a string representation of this Target.
+	/// </summary>
+	/// <returns>
+	/// The string in format: "Base Target; Type: $type$".
+	/// </returns>
+	virtual std::string toString() const;
 	
 	/// <summary>
 	/// Compares the specified Target instance for equality to this.
@@ -52,6 +61,21 @@ protected:
 };
 
 /// <summary>
+/// Appends the toString() return value of the specified target, to the 
+/// specified output stream and returns it.
+/// </summary>
+/// <param name="stream">
+/// The stream to which the target's toString() contents are to be appended.
+/// </param>
+/// <param name="target">
+/// The target whose string value is to be appended to the stream.
+/// </param>
+/// <returns>
+/// The string stream after target has been appended to it.
+/// </returns>
+std::ostream& operator<<(std::ostream &stream, const Target &target);
+
+/// <summary>
 /// Structure which represents a trackable file target.
 /// </summary>
 class TargetFile : public Target {
@@ -66,6 +90,15 @@ public:
 	/// The type of the file target (sink or source).
 	/// </param>
 	TargetFile(const std::string &name, const TargetType &type);
+
+	/// <summary>
+	/// Simple method which returns a string representation of this Target.
+	/// </summary>
+	/// <returns>
+	/// The string in format: "File Target; File: \"$fileName$\", 
+	/// Type: $type$".
+	/// </returns>
+	virtual std::string toString() const override;
 	
 	/// <summary>
 	/// Compares the specified Target instance for equality to this.
@@ -113,6 +146,15 @@ public:
 	/// </param>
 	TargetNetwork(const std::string &ip, const unsigned int &port, 
 			const TargetType &type);
+
+	/// <summary>
+	/// Simple method which returns a string representation of this Target.
+	/// </summary>
+	/// <returns>
+	/// The string in format: "Network Target; IP: \"$ip$\", Port: $port$, 
+	/// Type: $type$".
+	/// </returns>
+	virtual std::string toString() const override;
 
 	/// <summary>
 	/// Compares the specified Target instance for equality to this.
