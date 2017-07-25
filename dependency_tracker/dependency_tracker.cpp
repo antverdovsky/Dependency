@@ -1,11 +1,5 @@
 #include "dependency_tracker_def.h"
 
-#include "taint2/taint2.h"
-
-extern "C" {
-	#include "taint2/taint2_ext.h"
-}
-
 #include <fstream>
 #include <iostream>
 #include <sstream>
@@ -28,6 +22,36 @@ int labelBufferContents(CPUState *cpu, target_ulong vAddr, uint32_t length,
 	}
 	
 	return bytesTainted;
+}
+
+int on_before_block_execution(CPUState *cpu, TranslationBlock *tB) {
+	// Do nothing if PANDA is not in Kernel Mode
+	if (!panda_in_kernel(cpu)) return 0;
+	
+	// Get the current process using OSI and add it to the processes map
+	OsiProc *process = get_current_process(cpu);
+	target_ulong asid = panda_current_asid(cpu);
+	dependency_tracker.processes[asid] = *process;
+	
+	// Free the OSI process wrapper
+	free_osiproc(process);
+	return 1;
+}
+
+int on_before_block_translate(CPUState *cpu, target_ulong pc) {
+	// Enable taint if current instruction is g.t. when we are supposed to
+	// enable taint.
+	int instr = rr_get_guest_instr_count();
+	if (!taint2_enabled() && instr > dependency_tracker.enableTaintAt) {
+		if (dependency_tracker.debug) {
+			std::cout << "dependency_tracker: enabling taint at instruction " 
+				<< instr << "." << std::endl;
+		}
+		
+		taint2_enable_taint();
+	}
+	
+	return 0;
 }
 
 std::vector<std::vector<std::string>> parseCSV(const std::string &fileName) {
@@ -133,29 +157,66 @@ std::map<uint32_t, std::set<uint32_t>> queryBufferContents(
 }
 
 bool init_plugin(void *self) {
+#ifdef TARGET_I386
+	// Load dependent plugins
+	panda_require("osi");
+	panda_require("osi_linux");
+	panda_require("syscalls2");
+	panda_require("taint2");
+	
+	// Assert dependent plugins were loaded correctly
+	assert(init_osi_api());
+	assert(init_osi_linux_api());
+	assert(init_taint2_api());
+
 	// The paths to the files containing the sources list and the sinks list
 	std::string sourcesFile;
 	std::string sinksFile;
 
+	// Fetch arguments from PANDA
 	auto args = panda_get_args("dependency_tracker");
 	sourcesFile = panda_parse_string_opt(args, "sources", "sources",
 		"sources file name");
 	sinksFile = panda_parse_string_opt(args, "sinks", "sinks",
 		"sinks file name");
+	dependency_tracker.debug = panda_parse_bool_opt(args, "debug", 
+		"debug mode");
 
+	// Read the sources and sinks files, parse data into targets and add to
+	// plugin structure.
 	auto sourcesPtrs = parseTargets(sourcesFile, TargetType::SOURCE);
 	for (size_t i = 0; i < sourcesPtrs.size(); ++i) {
 		TargetSource *t = new TargetSource(std::move(sourcesPtrs[i]), i);
 		dependency_tracker.sources.push_back(std::unique_ptr<TargetSource>(t));
 	}
-
 	auto sinksPtrs = parseTargets(sinksFile, TargetType::SINK);
 	for (size_t i = 0; i < sinksPtrs.size(); ++i) {
 		TargetSink *t = new TargetSink(std::move(sinksPtrs[i]), i);
 		dependency_tracker.sinks.push_back(std::unique_ptr<TargetSink>(t));
 	}
+	
+	// Register the Panda Block Functions
+	panda_cb pcb;
+	pcb.before_block_translate = on_before_block_translate;
+	panda_register_callback(self, PANDA_CB_BEFORE_BLOCK_TRANSLATE, pcb);
+	pcb.before_block_exec = on_before_block_execution;
+	panda_register_callback(self, PANDA_CB_BEFORE_BLOCK_EXEC, pcb);
+	
+	// Print debug info, if available
+	if (dependency_tracker.debug) {
+		std::cout << "dependency_tracker: debug mode enabled. " << std::endl;
+		std::cout << "dependency_tracker: found " << sourcesPtrs.size() << 
+			" sources." << std::endl;
+		std::cout << "dependency_tracker: found " << sinksPtrs.size() << 
+			" sinks." << std::endl;
+	}
 
 	return true;
+#else
+	std::cout << "dependency_tracker is only supported for i386 targets." <<
+		std::endl;
+	return false;
+#endif
 }
 
 void uninit_plugin(void *self) {
