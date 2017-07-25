@@ -2,113 +2,6 @@
 
 #include <iostream>
 
-int cbf_beforeBlockExectuion(CPUState *cpu, TranslationBlock *tB) {
-	// Do nothing if PANDA is not in Kernel Mode
-	if (!panda_in_kernel(cpu)) return 0;
-	
-	// Get the current process using OSI and add it to the processes map
-	OsiProc *process = get_current_process(cpu);
-	target_ulong asid = panda_current_asid(cpu);
-	processesMap[asid] = *process;
-	
-	// Free the OSI process wrapper
-	free_osiproc(process);
-	return 1;
-}
-
-int cbf_beforeBlockTranslate(CPUState *cpu, target_ulong pc) {
-	// Enable taint if current instruction is g.t. when we are supposed to
-	// enable taint.
-	int instr = rr_get_guest_instr_count();
-	if (!taint2_enabled() && instr > dependency_file.enableTaintAt) {
-		if (dependency_file.debug) {
-			std::cout << "dependency_file: enabling taint at instruction " <<
-				instr << "." << std::endl;
-				
-		}
-		
-		taint2_enable_taint();
-	}
-	
-	return 0;
-}
-
-void cbf_pread64Return(CPUState *cpu, target_ulong pc, uint32_t fd,
-		uint32_t buffer, uint32_t count, uint64_t pos) {
-	std::string fileName = getFileName(cpu, fd);
-	logFileCallback("pread64_return", fileName);
-	
-	if (fileName == dependency_file.sourceFile) {
-		std::cout << "dependency_file: ***saw read return of source file***" <<
-			std::endl;
-		sawReadOfSource = true;
-		
-		// The count passed in by on_sys_pread64_enter_t is NOT accurate, the
-		// actual buffer length is stored in register EAX (located at index 
-		// zero in CPU's registers array).
-		int actualCount = ((CPUArchState*)cpu->env_ptr)->regs[0];
-		int numTainted = labelBufferContents(cpu, buffer, actualCount);
-		if (dependency_file.debug) {
-			std::cout << "dependency_file: " << numTainted << 
-				" tainted bytes read from \"" << fileName << "\"." << 
-				std::endl;
-		}
-		
-		taintedBytesLabeled += numTainted;
-	}
-}
-
-void cbf_pwrite64Return(CPUState *cpu, target_ulong pc, uint32_t fd,
-		uint32_t buffer, uint32_t count, uint64_t pos) {
-	std::string fileName = getFileName(cpu, fd);
-	logFileCallback("pwrite64_return", fileName);
-	
-	if (fileName == dependency_file.sinkFile) {
-		std::cout << "dependency_file: ***saw pwrite enter of sink file***" << 
-			std::endl;
-		sawWriteOfSink = true;
-		
-		int numTainted = queryBufferContents(cpu, buffer, count);
-		if (dependency_file.debug) {
-			std::cout << "dependency_file: " << numTainted << 
-				" tainted bytes written to \"" << fileName << "\"." << 
-				std::endl;
-		}
-
-		taintedBytesQueried += numTainted;
-	}
-}
-
-void cbf_openEnter(CPUState *cpu, target_ulong pc, uint32_t fileAddr, int32_t
-		flags, int32_t mode) {
-	std::string fileName = getGuestString(cpu, 256, fileAddr);
-	logFileCallback("open_enter", fileName);
-	
-	// Since open may only contain the file name and not the full directory,
-	// we just search for the name of the file in the source file string. Note
-	// that this means that we think we have an open called for the source file
-	// when we really don't. This is fine since this just means that we will
-	// start tainting sooner than necessary.
-	if (!fileName.empty() && !sawOpenOfSource &&
-			dependency_file.sourceFile.find(fileName) != std::string::npos) {
-		std::cout << "dependency_file: ***saw open enter of source file***" << 
-			std::endl;
-		
-		dependency_file.enableTaintAt = rr_get_guest_instr_count();
-		sawOpenOfSource = true;
-	}
-}
-
-void cbf_readReturn(CPUState *cpu, target_ulong pc, uint32_t fd, 
-		uint32_t buffer, uint32_t count) {
-	cbf_pread64Return(cpu, pc, fd, buffer, count, 0);
-}
-
-void cbf_writeReturn(CPUState *cpu, target_ulong pc, uint32_t fd,
-		uint32_t buffer, uint32_t count) {
-	cbf_pwrite64Return(cpu, pc, fd, buffer, count, 0);
-}
-
 std::string getFileName(CPUState *cpu, int fd) {
 	// Get current ASID from PANDA
 	target_ulong asid = panda_current_asid(cpu);
@@ -144,7 +37,7 @@ std::string getFileName(CPUState *cpu, int fd) {
 	return "";
 }
 
-std::string getGuestString(CPUState *cpu, size_t maxSize, target_ulong addr) {
+std::string getGuestString(CPUState *cpu, target_ulong addr, size_t maxSize) {
 	// Create an empty string with all zeros
 	std::string str(maxSize, '0');
 
@@ -205,6 +98,113 @@ void logFileCallback(const std::string &event, const std::string &file) {
 			file << "\" at instruction " << rr_get_guest_instr_count() << 
 			"." << std::endl;
 	}
+}
+
+int on_before_block_execution(CPUState *cpu, TranslationBlock *tB) {
+	// Do nothing if PANDA is not in Kernel Mode
+	if (!panda_in_kernel(cpu)) return 0;
+	
+	// Get the current process using OSI and add it to the processes map
+	OsiProc *process = get_current_process(cpu);
+	target_ulong asid = panda_current_asid(cpu);
+	processesMap[asid] = *process;
+	
+	// Free the OSI process wrapper
+	free_osiproc(process);
+	return 1;
+}
+
+int on_before_block_translate(CPUState *cpu, target_ulong pc) {
+	// Enable taint if current instruction is g.t. when we are supposed to
+	// enable taint.
+	int instr = rr_get_guest_instr_count();
+	if (!taint2_enabled() && instr > dependency_file.enableTaintAt) {
+		if (dependency_file.debug) {
+			std::cout << "dependency_file: enabling taint at instruction " <<
+				instr << "." << std::endl;
+				
+		}
+		
+		taint2_enable_taint();
+	}
+	
+	return 0;
+}
+
+void on_pread64_return(CPUState *cpu, target_ulong pc, uint32_t fd,
+		uint32_t buffer, uint32_t count, uint64_t pos) {
+	std::string fileName = getFileName(cpu, fd);
+	logFileCallback("pread64_return", fileName);
+	
+	if (fileName == dependency_file.sourceFile) {
+		std::cout << "dependency_file: ***saw read return of source file***" <<
+			std::endl;
+		sawReadOfSource = true;
+		
+		// The count passed in by on_sys_pread64_enter_t is NOT accurate, the
+		// actual buffer length is stored in register EAX (located at index 
+		// zero in CPU's registers array).
+		int actualCount = ((CPUArchState*)cpu->env_ptr)->regs[0];
+		int numTainted = labelBufferContents(cpu, buffer, actualCount);
+		if (dependency_file.debug) {
+			std::cout << "dependency_file: " << numTainted << 
+				" tainted bytes read from \"" << fileName << "\"." << 
+				std::endl;
+		}
+		
+		taintedBytesLabeled += numTainted;
+	}
+}
+
+void on_pwrite64_return(CPUState *cpu, target_ulong pc, uint32_t fd,
+		uint32_t buffer, uint32_t count, uint64_t pos) {
+	std::string fileName = getFileName(cpu, fd);
+	logFileCallback("pwrite64_return", fileName);
+	
+	if (fileName == dependency_file.sinkFile) {
+		std::cout << "dependency_file: ***saw pwrite enter of sink file***" << 
+			std::endl;
+		sawWriteOfSink = true;
+		
+		int numTainted = queryBufferContents(cpu, buffer, count);
+		if (dependency_file.debug) {
+			std::cout << "dependency_file: " << numTainted << 
+				" tainted bytes written to \"" << fileName << "\"." << 
+				std::endl;
+		}
+
+		taintedBytesQueried += numTainted;
+	}
+}
+
+void on_open_enter(CPUState *cpu, target_ulong pc, uint32_t fileAddr, 
+		int32_t flags, int32_t mode) {
+	std::string fileName = getGuestString(cpu, fileAddr, 256);
+	logFileCallback("open_enter", fileName);
+	
+	// Since open may only contain the file name and not the full directory,
+	// we just search for the name of the file in the source file string. Note
+	// that this means that we think we have an open called for the source file
+	// when we really don't. This is fine since this just means that we will
+	// start tainting sooner than necessary.
+	if (!fileName.empty() && !sawOpenOfSource &&
+			dependency_file.sourceFile.find(fileName) != std::string::npos) {
+		std::cout << "dependency_file: ***saw open enter of source file***" << 
+			std::endl;
+		
+		dependency_file.enableTaintAt = rr_get_guest_instr_count();
+		sawOpenOfSource = true;
+	}
+}
+
+void on_read_return(CPUState *cpu, target_ulong pc, uint32_t fd, 
+		uint32_t buffer, uint32_t count) {
+	on_pread64_return(cpu, pc, fd, buffer, count, 0);
+}
+
+void on_write_return(CPUState *cpu, target_ulong pc, uint32_t fd,
+		uint32_t buffer, uint32_t count) {
+	on_pwrite64_return(cpu, pc, fd, buffer, count, 0);
 }
 
 int queryBufferContents(CPUState *cpu, target_ulong vAddr, uint32_t length) {
@@ -272,19 +272,19 @@ bool init_plugin(void *self) {
 	std::cout << "Debug: " << dependency_file.debug << std::endl;
 	
 	// Register SysCalls2 Callback Functions
-	PPP_REG_CB("syscalls2", on_sys_open_enter, cbf_openEnter);
-	PPP_REG_CB("syscalls2", on_sys_pread64_return, cbf_pread64Return);
-	PPP_REG_CB("syscalls2", on_sys_pwrite64_return, cbf_pwrite64Return);
-	PPP_REG_CB("syscalls2", on_sys_read_return, cbf_readReturn);
-	PPP_REG_CB("syscalls2", on_sys_write_return, cbf_writeReturn);
+	PPP_REG_CB("syscalls2", on_sys_open_enter, on_open_enter);
+	PPP_REG_CB("syscalls2", on_sys_pread64_return, on_pread64_return);
+	PPP_REG_CB("syscalls2", on_sys_pwrite64_return, on_pwrite64_return);
+	PPP_REG_CB("syscalls2", on_sys_read_return, on_read_return);
+	PPP_REG_CB("syscalls2", on_sys_write_return, on_write_return);
 	
 	/// Register the Before Block Execution Functions
 	panda_cb pcb;
 	
-	pcb.before_block_translate = cbf_beforeBlockTranslate;
+	pcb.before_block_translate = on_before_block_translate;
 	panda_register_callback(self, PANDA_CB_BEFORE_BLOCK_TRANSLATE, pcb);
 	
-	pcb.before_block_exec = cbf_beforeBlockExectuion;
+	pcb.before_block_exec = on_before_block_execution;
 	panda_register_callback(self, PANDA_CB_BEFORE_BLOCK_EXEC, pcb);
 	
 	return true;
