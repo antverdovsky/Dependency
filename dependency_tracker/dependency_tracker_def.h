@@ -13,13 +13,13 @@
 #include <vector>
 
 struct Dependency_Tracker {
-	void *plugin_ptr = nullptr;                      // The plugin pointer
+	void *plugin_ptr = nullptr;                          // The plugin pointer
 	
-	std::vector<std::unique_ptr<Target>> sources;    // Source Targets
-	std::vector<std::unique_ptr<Target>> sinks;      // Sink Targets
+	std::vector<std::unique_ptr<TargetSource>> sources;  // Source Targets
+	std::vector<std::unique_ptr<TargetSink>> sinks;      // Sink Targets
 };
 
-Dependency_Tracker dependency_tracker; // The Dependency Tracker Structure
+Dependency_Tracker dependency_tracker;                   // Plugin Reference
 
 /// <summary>
 /// Taints the contents of the buffer at the specified virtual address and of 

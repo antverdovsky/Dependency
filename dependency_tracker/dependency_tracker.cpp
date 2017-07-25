@@ -77,11 +77,6 @@ std::vector<std::unique_ptr<Target>> parseTargets(const std::string &fileName,
 	for (auto &line : lines) {
 		++lineNumber;
 
-		for (auto &token : line) {
-			std::cout << "\"" << token << "\", ";
-		}
-		std::cout << std::endl;
-
 		if (line.size() == 2 && line[0] == "f") {
 			std::string fileName = line[1];
 	
@@ -148,8 +143,17 @@ bool init_plugin(void *self) {
 	sinksFile = panda_parse_string_opt(args, "sinks", "sinks",
 		"sinks file name");
 
-	dependency_tracker.sources = parseTargets(sourcesFile, TargetType::SOURCE);
-	dependency_tracker.sinks = parseTargets(sinksFile, TargetType::SINK);
+	auto sourcesPtrs = parseTargets(sourcesFile, TargetType::SOURCE);
+	for (size_t i = 0; i < sourcesPtrs.size(); ++i) {
+		TargetSource *t = new TargetSource(std::move(sourcesPtrs[i]), i);
+		dependency_tracker.sources.push_back(std::unique_ptr<TargetSource>(t));
+	}
+
+	auto sinksPtrs = parseTargets(sinksFile, TargetType::SINK);
+	for (size_t i = 0; i < sinksPtrs.size(); ++i) {
+		TargetSink *t = new TargetSink(std::move(sinksPtrs[i]), i);
+		dependency_tracker.sinks.push_back(std::unique_ptr<TargetSink>(t));
+	}
 
 	return true;
 }
@@ -158,12 +162,12 @@ void uninit_plugin(void *self) {
 	std::cout << "Goodbye World from Dependency_Tracker Plugin." << std::endl;
 
 	std::cout << "Sources: " << std::endl;
-	for (auto &target : dependency_tracker.sources) { 
-		std::cout << "\t" << target->toString() << std::endl;
+	for (auto &src : dependency_tracker.sources) { 
+		std::cout << "\t" << src->getTarget().toString() << std::endl;
 	}
 
 	std::cout << "Sinks: " << std::endl;
-	for (auto &target : dependency_tracker.sinks) { 
-		std::cout << "\t" << target->toString() << std::endl;
+	for (auto &sink : dependency_tracker.sinks) { 
+		std::cout << "\t" << sink->getTarget().toString() << std::endl;
 	}
 }
