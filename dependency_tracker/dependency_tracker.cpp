@@ -1,9 +1,34 @@
 #include "dependency_tracker_def.h"
 
+#include "taint2/taint2.h"
+
+extern "C" {
+	#include "taint2/taint2_ext.h"
+}
+
 #include <fstream>
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
+
+int labelBufferContents(CPUState *cpu, target_ulong vAddr, uint32_t length,
+		uint32_t label) {
+	if (!taint2_enabled()) return 0;
+	int bytesTainted = 0;               // Total number of bytes tainted
+	
+	for (auto i = 0; i < length; ++i) {
+		// Convert the virtual address to a physical, assert it is valid, if
+		// not skip this byte.
+		hwaddr pAddr = panda_virt_to_phys(cpu, vAddr + i);
+		if (pAddr == (hwaddr)(-1)) continue;
+		
+		// Else, taint at the physical address specified
+		taint2_label_ram(pAddr, label);
+		++bytesTainted;
+	}
+	
+	return bytesTainted;
+}
 
 std::vector<std::vector<std::string>> parseCSV(const std::string &fileName) {
 	std::vector<std::vector<std::string>> lines;
@@ -91,6 +116,25 @@ std::vector<std::unique_ptr<Target>> parseTargets(const std::string &fileName,
 	}
 
 	return targets;
+}
+
+std::map<uint32_t, std::set<uint32_t>> queryBufferContents(
+		CPUState *cpu, target_ulong vAddr, uint32_t length) {
+	std::map<uint32_t, std::set<uint32_t>> map; // { displacement -> labels }
+	if (!taint2_enabled()) return map;
+	
+	for (auto i = 0; i < length; ++i) {
+		// Convert the virtual address to a physical, assert it is valid, if
+		// not skip this byte.
+		hwaddr pAddr = panda_virt_to_phys(cpu, vAddr + i);
+		if (pAddr == (hwaddr)(-1)) continue;
+		
+		// Get the label set for the physical address and add it to the map
+		LabelSetP labelSet = taint2_query_set_ram(pAddr);
+		map[i] = *labelSet;
+	}
+	
+	return map;
 }
 
 bool init_plugin(void *self) {
