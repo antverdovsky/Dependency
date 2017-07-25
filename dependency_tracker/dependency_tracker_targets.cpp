@@ -2,22 +2,20 @@
 
 #include <typeinfo>
 
-Target::Target(const TargetType &type) {
-	this->type = type;
+Target::Target() {
+	
 }
 
 std::string Target::toString() const {
-	return ("Base Target; Type: " + std::to_string(this->type));
+	return "Base Target";
 }
 
 bool Target::operator==(const Target &rhs) const {
-	if (typeid(*this) != typeid(rhs)) return false;
-
-	return this->type == type;
+	return typeid(*this) == typeid(rhs);
 }
 
 bool Target::operator!=(const Target &rhs) const {
-	return !this->operator==(rhs);
+	return typeid(*this) != typeid(rhs);
 }
 
 std::ostream& operator<<(std::ostream &stream, const Target &target) {
@@ -61,14 +59,12 @@ const Target& TargetSink::getTarget() const {
 	return *this->target;
 }
 
-TargetFile::TargetFile(const std::string &name, const TargetType &type) :
-		Target(type) {
+TargetFile::TargetFile(const std::string &name) {
 	this->fileName = name;
 }
 
 std::string TargetFile::toString() const {
-	return ("File Target; File: \"" + this->fileName + "\", Type: " + 
-		std::to_string(this->type));
+	return ("File Target; File: \"" + this->fileName + "\"");
 }
 
 bool TargetFile::operator==(const Target &rhs) const {
@@ -79,19 +75,17 @@ bool TargetFile::operator==(const Target &rhs) const {
 }
 
 bool TargetFile::operator!=(const Target &rhs) const {
-	return !this->operator==(rhs);
+	return !(this->operator==(rhs));
 }
 
-TargetNetwork::TargetNetwork(const std::string &ip, const unsigned int &port, 
-		const TargetType &type) : Target(type) {
+TargetNetwork::TargetNetwork(const std::string &ip, const unsigned int &port) {
 	this->ip = ip;
 	this->port = port;
 }
 
 std::string TargetNetwork::toString() const {
 	return ("Network Target; IP : \"" + this->ip + 
-		"\", Port: " + std::to_string(this->port) + 
-		", Type: " + std::to_string(this->type));
+		"\", Port: " + std::to_string(this->port) + ".");
 }
 
 bool TargetNetwork::operator==(const Target &rhs) const {
@@ -102,5 +96,5 @@ bool TargetNetwork::operator==(const Target &rhs) const {
 }
 
 bool TargetNetwork::operator!=(const Target &rhs) const {
-	return !this->operator==(rhs);
+	return !(this->operator==(rhs));
 }

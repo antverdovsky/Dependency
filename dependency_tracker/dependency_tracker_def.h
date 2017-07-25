@@ -110,18 +110,14 @@ std::vector<std::vector<std::string>> parseCSV(const std::string &fileName);
 /// Parses the targets from the specified CSV file and returns a vector of the
 /// targets parsed.
 /// </summary>
-/// <param name="fileName">
+/// <param name="file">
 /// The name of the CSV file from which to parse the targets.
-/// </param>
-/// <param name="type">
-/// The type of the targets being read in (sources or sinks).
 /// </param>
 /// <returns>
 /// The vector containing all valid targets which were successfully read in
 /// from the file.
 /// </returns>
-std::vector<std::unique_ptr<Target>> parseTargets(const std::string &fileName, 
-		const TargetType &type);
+std::vector<std::unique_ptr<Target>> parseTargets(const std::string &file);
 		
 /// <summary>
 /// Queries the contents of the buffer at the specified virtual address and of

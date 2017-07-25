@@ -7,31 +7,20 @@
 #include <string>
 
 /// <summary>
-/// Represents the type of target this is, either a source or a sink.
-/// </summary>
-enum TargetType {
-	SINK   = 0,
-	SOURCE = 1
-};
-
-/// <summary>
 /// Structure which represents a trackable target.
 /// </summary>
 class Target {
 public:
 	/// <summary>
-	/// Creates a new target of the specified type.
+	/// Creates a new target.
 	/// </summary>
-	/// <param name="type">
-	/// The type of target (sink or source).
-	/// </param>
-	Target(const TargetType &type);
+	Target();
 
 	/// <summary>
 	/// Simple method which returns a string representation of this Target.
 	/// </summary>
 	/// <returns>
-	/// The string in format: "Base Target; Type: $type$".
+	/// The string in format: "Base Target".
 	/// </returns>
 	virtual std::string toString() const;
 	
@@ -58,8 +47,6 @@ public:
 	/// True if the instances are inequivalent, false otherwise.
 	/// </returns>
 	virtual bool operator!=(const Target &rhs) const;
-protected:
-	TargetType type;                       // The type of Target
 };
 
 /// <summary>
@@ -78,64 +65,6 @@ protected:
 std::ostream& operator<<(std::ostream &stream, const Target &target);
 
 /// <summary>
-/// Class which represents a source target.
-/// </summary>
-class TargetSource {
-public:
-	/// <summary>
-	/// Constructs a Target Source with the specified target. The index should
-	/// be equivalent to the index of the Target in its sources vector.
-	/// </summary>
-	/// <param name="target">
-	/// The unique pointer to the target. This should have a source type,
-	/// and this is enforced by an assertion.
-	/// </param>
-	/// <param name="index">
-	/// The index of this Target in the sources vector.
-	/// </param>
-	TargetSource(std::unique_ptr<Target> target, const size_t &index);
-
-	/// <summary>
-	/// Copying of Target Source instances is forbidden.
-	/// </summary>
-	TargetSource(const TargetSource&) = delete;
-
-	/// <summary>
-	/// Returns a reference to the index of this target in the sources vector.
-	/// This is expected to never change since targets are not added nor
-	/// removed after the plugin is initialized.
-	/// </summary>
-	const size_t& getIndex() const;
-
-	/// <summary>
-	/// Returns a reference to the number of labeled bytes of this target.
-	/// This should be set when any data of this source target is labeled.
-	/// </summary>
-	/// <returns>
-	/// A reference to the value.
-	/// </returns>
-	uint32_t& getLabeledBytes();
-
-	/// <summary>
-	/// Gets a constant reference to the target attached to this sink.
-	/// </summary>
-	/// <returns>
-	/// The constant reference to the target.
-	/// </returns>
-	const Target& getTarget() const;
-
-	/// <summary>
-	/// Assignment of Target Source instances is forbidden.
-	/// </summary>
-	TargetSource& operator=(const TargetSource&) = delete;
-protected:
-	std::unique_ptr<Target> target;        // The target attached to this src
-	size_t index;                          // Index of this in sources vector
-
-	uint32_t labeledBytes;                 // Number of tainted bytes of this
-};
-
-/// <summary>
 /// Class which represents a sink target.
 /// </summary>
 class TargetSink {
@@ -145,8 +74,7 @@ public:
 	/// be equivalent to the index of the Target in its sinks vector.
 	/// </summary>
 	/// <param name="target">
-	/// The unique pointer to the target. This should have a sink type,
-	/// and this is enforced by an assertion.
+	/// The unique pointer to the target.
 	/// </param>
 	/// <param name="index">
 	/// The index of this Target in the sinks vector.
@@ -197,6 +125,63 @@ protected:
 };
 
 /// <summary>
+/// Class which represents a source target.
+/// </summary>
+class TargetSource {
+public:
+	/// <summary>
+	/// Constructs a Target Source with the specified target. The index should
+	/// be equivalent to the index of the Target in its sources vector.
+	/// </summary>
+	/// <param name="target">
+	/// The unique pointer to the target.
+	/// </param>
+	/// <param name="index">
+	/// The index of this Target in the sources vector.
+	/// </param>
+	TargetSource(std::unique_ptr<Target> target, const size_t &index);
+
+	/// <summary>
+	/// Copying of Target Source instances is forbidden.
+	/// </summary>
+	TargetSource(const TargetSource&) = delete;
+
+	/// <summary>
+	/// Returns a reference to the index of this target in the sources vector.
+	/// This is expected to never change since targets are not added nor
+	/// removed after the plugin is initialized.
+	/// </summary>
+	const size_t& getIndex() const;
+
+	/// <summary>
+	/// Returns a reference to the number of labeled bytes of this target.
+	/// This should be set when any data of this source target is labeled.
+	/// </summary>
+	/// <returns>
+	/// A reference to the value.
+	/// </returns>
+	uint32_t& getLabeledBytes();
+
+	/// <summary>
+	/// Gets a constant reference to the target attached to this sink.
+	/// </summary>
+	/// <returns>
+	/// The constant reference to the target.
+	/// </returns>
+	const Target& getTarget() const;
+
+	/// <summary>
+	/// Assignment of Target Source instances is forbidden.
+	/// </summary>
+	TargetSource& operator=(const TargetSource&) = delete;
+protected:
+	std::unique_ptr<Target> target;        // The target attached to this src
+	size_t index;                          // Index of this in sources vector
+
+	uint32_t labeledBytes;                 // Number of tainted bytes of this
+};
+
+/// <summary>
 /// Structure which represents a trackable file target.
 /// </summary>
 class TargetFile : public Target {
@@ -207,17 +192,13 @@ public:
 	/// <param name="name">
 	/// The directory and name of the file target.
 	/// </param>
-	/// <param name="type">
-	/// The type of the file target (sink or source).
-	/// </param>
-	TargetFile(const std::string &name, const TargetType &type);
+	TargetFile(const std::string &name);
 
 	/// <summary>
 	/// Simple method which returns a string representation of this Target.
 	/// </summary>
 	/// <returns>
-	/// The string in format: "File Target; File: \"$fileName$\", 
-	/// Type: $type$".
+	/// The string in format: "File Target; File: \"$fileName$\"".
 	/// </returns>
 	virtual std::string toString() const override;
 	
@@ -262,18 +243,13 @@ public:
 	/// <param name="port">
 	/// The port of the network target.
 	/// </param>
-	/// <param name="type">
-	/// The type of the file target (sink or source).
-	/// </param>
-	TargetNetwork(const std::string &ip, const unsigned int &port, 
-			const TargetType &type);
+	TargetNetwork(const std::string &ip, const unsigned int &port);
 
 	/// <summary>
 	/// Simple method which returns a string representation of this Target.
 	/// </summary>
 	/// <returns>
-	/// The string in format: "Network Target; IP: \"$ip$\", Port: $port$, 
-	/// Type: $type$".
+	/// The string in format: "Network Target; IP: \"$ip$\", Port: $port$".
 	/// </returns>
 	virtual std::string toString() const override;
 

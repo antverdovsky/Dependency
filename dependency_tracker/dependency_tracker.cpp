@@ -92,10 +92,9 @@ std::vector<std::vector<std::string>> parseCSV(const std::string &fileName) {
 	return lines;
 }
 
-std::vector<std::unique_ptr<Target>> parseTargets(const std::string &fileName, 
-		const TargetType &type) {
+std::vector<std::unique_ptr<Target>> parseTargets(const std::string &file) {
 	std::vector<std::unique_ptr<Target>> targets;
-	std::vector<std::vector<std::string>> lines = parseCSV(fileName);
+	std::vector<std::vector<std::string>> lines = parseCSV(file);
 
 	unsigned int lineNumber = 0;
 	for (auto &line : lines) {
@@ -105,7 +104,7 @@ std::vector<std::unique_ptr<Target>> parseTargets(const std::string &fileName,
 			std::string fileName = line[1];
 	
 			auto target = std::unique_ptr<TargetFile>(
-				new TargetFile(fileName, type));
+				new TargetFile(fileName));
 			targets.push_back(std::move(target));
 		} else if (line.size() == 3 && line[0] == "n") {
 			std::string ip = line[1];
@@ -126,7 +125,7 @@ std::vector<std::unique_ptr<Target>> parseTargets(const std::string &fileName,
 			}
 
 			auto target = std::unique_ptr<TargetNetwork>(
-				new TargetNetwork(ip, port, type));
+				new TargetNetwork(ip, port));
 			targets.push_back(std::move(target));
 		} else {
 			std::cerr << "dependency_tracker: unknown target on line " <<
@@ -184,12 +183,12 @@ bool init_plugin(void *self) {
 
 	// Read the sources and sinks files, parse data into targets and add to
 	// plugin structure.
-	auto sourcesPtrs = parseTargets(sourcesFile, TargetType::SOURCE);
+	auto sourcesPtrs = parseTargets(sourcesFile);
 	for (size_t i = 0; i < sourcesPtrs.size(); ++i) {
 		TargetSource *t = new TargetSource(std::move(sourcesPtrs[i]), i);
 		dependency_tracker.sources.push_back(std::unique_ptr<TargetSource>(t));
 	}
-	auto sinksPtrs = parseTargets(sinksFile, TargetType::SINK);
+	auto sinksPtrs = parseTargets(sinksFile);
 	for (size_t i = 0; i < sinksPtrs.size(); ++i) {
 		TargetSink *t = new TargetSink(std::move(sinksPtrs[i]), i);
 		dependency_tracker.sinks.push_back(std::unique_ptr<TargetSink>(t));
