@@ -226,7 +226,7 @@ void on_pwrite64_return(CPUState *cpu, target_ulong pc, uint32_t fd,
 	}
 	
 	// Query the buffer contents, add the results to the labeled bytes
-	// property of the source.
+	// property of the sink.
 	std::map<uint32_t, uint32_t> bytes = queryBufferContents(
 		cpu, buffer, count);
 	for (auto &it : bytes) {
@@ -239,7 +239,7 @@ void on_pwrite64_return(CPUState *cpu, target_ulong pc, uint32_t fd,
 		
 		std::cout << "dependency_tracker: ***saw write of sink target \"" <<
 			*target << "\", " << numTainted << "/" << count << 
-			" bytes written to target " << "with label " << source << "***" << 
+			" bytes written to target with label " << source << "***" << 
 			std::endl;
 	}
 }
@@ -257,6 +257,9 @@ void on_socketcall_return(CPUState *cpu, target_ulong pc, int32_t call,
 	case SYS_RECV:
 	case SYS_RECVFROM:
 		return on_socketcall_recv_return(cpu, args);
+	case SYS_SEND:
+	case SYS_SENDTO:
+		return on_socketcall_send_return(cpu, args);
 	}
 }
 
@@ -344,6 +347,52 @@ void on_socketcall_recv_return(CPUState *cpu, uint32_t args) {
 	std::cout << "dependency_tracker: ***saw recv of source target: \"" <<
 		*target << "\", tainted " << bytes << "/" << length << 
 		" bytes with label " << targetSource->getIndex() << "***" << std::endl;
+}
+
+void on_socketcall_send_return(CPUState *cpu, uint32_t args) {
+	// Get the arguments from the args virtual memory
+	auto arguments = getMemoryValues<uint32_t>(cpu, args, 3);
+	
+	// Retrieve the socket file descriptor, buffer address and buffer length
+	// from the arguments.
+	uint32_t sockfd = arguments[0];
+	uint32_t buffer = arguments[1];
+	uint32_t length = arguments[2];
+	
+	// We are expecting a Sink Network Target here, so we only have to try to
+	// get a Network Target.
+	TargetNetwork tN = getTargetNetwork(panda_current_asid(cpu), sockfd);
+
+	// Check that the target network is valid, if not continue
+	Target *target = nullptr;
+	if (tN)      target = &tN;
+	else         return;
+
+	// Get the pointer to the target source associated with the fetched target
+	TargetSink *targetSink = nullptr;
+	try {
+		targetSink = &getTargetSink(*target);
+	} catch (const std::invalid_argument &e) {
+		return;
+	}
+
+	// Query the buffer contents, add the results to the labeled bytes
+	// property of the sink.
+	std::map<uint32_t, uint32_t> bytes = queryBufferContents(
+		cpu, buffer, length);
+	for (auto &it : bytes) {
+		uint32_t source = it.first;
+		uint32_t numTainted = it.second;
+		
+		// Note here that if source D.N.E. in the labeled bytes map, it will
+		// be default constructed with a value of zero.
+		targetSink->getLabeledBytes()[source] += numTainted;
+		
+		std::cout << "dependency_tracker: ***saw send of sink target \"" <<
+			*target << "\", " << numTainted << "/" << length << 
+			" bytes written to target with label " << source << "***" << 
+			std::endl;
+	}
 }
 
 void on_write_return(CPUState *cpu, target_ulong pc, uint32_t fd, 
