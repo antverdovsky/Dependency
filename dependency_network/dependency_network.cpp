@@ -149,7 +149,19 @@ void on_socketcall_return(CPUState *cpu, target_ulong pc, int32_t call,
 			call << std::endl;
 	}
 			
-	if (call == SYS_CONNECT) on_socketcall_connect_return(cpu, args);
+	switch (call) {
+	case SYS_CONNECT:
+		on_socketcall_connect_return(cpu, args);
+		return;
+	case SYS_SEND:
+	case SYS_SENDTO:
+		on_socketcall_send_return(cpu, args);
+		return;
+	case SYS_RECV:
+	case SYS_RECVFROM:
+		on_socketcall_recv_return(cpu, args);
+		return;
+	}
 }
 
 void on_socketcall_connect_return(CPUState *cpu, uint32_t args) {
@@ -207,6 +219,76 @@ void on_socketcall_connect_return(CPUState *cpu, uint32_t args) {
 	} else if (target == dependency_network.sink) {
 		std::cout << "***saw connect to sink target***" << std::endl;
 		dependency_network.enableTaintAt = rr_get_guest_instr_count();
+	}
+}
+
+void on_socketcall_recv_return(CPUState *cpu, uint32_t args) {
+	std::cout << "dependency_network: socket_recv called at " <<
+		rr_get_guest_instr_count() << "." << std::endl;
+	
+	// Get the arguments from the args virtual memory
+	auto arguments = getMemoryValues<uint32_t>(cpu, args, 4);
+	
+	// Retrieve the socket file descriptor, buffer address and buffer length
+	// from the arguments.
+	uint32_t sockfd = arguments[0];
+	uint32_t buffer = arguments[1];
+	uint32_t length = arguments[2];
+	
+	// Try to get the network target using the socket file descriptor
+	Dependency_Network_Target target;
+	try {
+		target = targets.at(std::make_pair(panda_current_asid(cpu), sockfd));
+	} catch (const std::out_of_range &e) {
+		std::cerr << "dependency_network: socket_recv called, but file" <<
+			" descriptor " << sockfd << " is unknown." << std::endl;
+		return;
+	}
+	
+	// If we are receiving information from the source target, taint it
+	if (target == dependency_network.source) {
+		std::cout << "dependency_network: ***saw recv from source target***" 
+			<< std::endl;
+			
+		sawReadOfSource = true;
+		labelBufferContents(cpu, buffer, length);
+	}
+}
+
+void on_socketcall_send_return(CPUState *cpu, uint32_t args) {
+	std::cout << "dependency_network: socket_recv called at " <<
+		rr_get_guest_instr_count() << "." << std::endl;
+	
+	// Get the arguments from the args virtual memory
+	auto arguments = getMemoryValues<uint32_t>(cpu, args, 4);
+	
+	// Retrieve the socket file descriptor, buffer address and buffer length
+	// from the arguments.
+	uint32_t sockfd = arguments[0];
+	uint32_t buffer = arguments[1];
+	uint32_t length = arguments[2];
+	
+	// Try to get the network target using the socket file descriptor
+	Dependency_Network_Target target;
+	try {
+		target = targets.at(std::make_pair(panda_current_asid(cpu), sockfd));
+	} catch (const std::out_of_range &e) {
+		std::cerr << "dependency_network: socket_send called, but file" <<
+			" descriptor " << sockfd << " is unknown." << std::endl;
+		return;
+	}
+	
+	// If we are receiving information from the source target, taint it
+	if (target == dependency_network.sink) {
+		std::cout << "dependency_network: ***saw send to sink target***" << 
+			std::endl;
+			
+		int numTainted = queryBufferContents(cpu, buffer, length);
+		std::cout << "dependency_network: " << numTainted << " tainted bytes " 
+			<< "written to " << target.ip << "." << std::endl;
+
+		sawWriteOfSink = true;
+		if (numTainted > 0) dependency = true;
 	}
 }
 

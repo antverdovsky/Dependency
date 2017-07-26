@@ -239,6 +239,36 @@ void on_socketcall_return(CPUState *cpu, target_ulong pc, int32_t call,
 void on_socketcall_connect_return(CPUState *cpu, uint32_t args);
 
 /// <summary>
+/// Callback function for the syscalls2 "on_sys_recv_return_t" event. This
+/// function gets the IP and port associated with the receive command and if
+/// this is a source target, it taints the buffer of this call and outputs the
+/// number of tainted bytes.
+/// </summary>
+/// <param name="cpu">
+/// The CPU State pointer.
+/// </param>
+/// <param name="args">
+/// The virtual memory address to the start of the arguments for the recv()
+/// system call.
+/// </param>
+void on_socketcall_recv_return(CPUState *cpu, uint32_t args);
+
+/// <summary>
+/// Callback function for the syscalls2 "on_sys_send_return_t" event. This
+/// function gets the IP and port associated with the send command and if
+/// this is a sink target, it queries the buffer of this call for taint and
+/// outputs the number of tainted bytes.
+/// </summary>
+/// <param name="cpu">
+/// The CPU State pointer.
+/// </param>
+/// <param name="args">
+/// The virtual memory address to the start of the arguments for the send()
+/// system call.
+/// </param>
+void on_socketcall_send_return(CPUState *cpu, uint32_t args);
+
+/// <summary>
 /// Callback function for the syscalls2 "on_sys_write_return_t" event. This
 /// function is equivalent to <see cref="on_pwrite64_return"> with a zero
 /// position argument.
