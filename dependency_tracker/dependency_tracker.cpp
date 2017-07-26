@@ -5,6 +5,8 @@
 #include <sstream>
 #include <stdexcept>
 
+#include <linux/net.h>
+
 template<typename T>
 std::vector<T> getMemoryValues(CPUState *cpu, uint32_t addr, uint32_t size) {
 	std::vector<T> values;
@@ -124,6 +126,61 @@ int on_before_block_translate(CPUState *cpu, target_ulong pc) {
 	}
 	
 	return 0;
+}
+
+void on_socketcall_return(CPUState *cpu, target_ulong pc, int32_t call,
+		uint32_t args) {
+	switch (call) {
+	case SYS_CONNECT:
+		return on_socketcall_connect_return(cpu, args);
+	}
+}
+
+void on_socketcall_connect_return(CPUState *cpu, uint32_t args) {
+	// Get the arguments from the args virtual memory
+	auto arguments = getMemoryValues<uint32_t>(cpu, args, 3);
+
+	// Get the sockaddr structure from the arguments. The virtual memory 
+	// address to the sockaddr structure is stored in the second argument of
+	// the args passed to connect(). Use that address to get the sockaddr.
+	auto sockaddrPtr = arguments[1];
+	sockaddr addr = getMemoryValues<sockaddr>(cpu, sockaddrPtr, 1)[0];
+	
+	// Stores the IP address found and the port number
+	char ip[INET6_ADDRSTRLEN] = {0};
+	unsigned short port = 0;
+	
+	// Get the IP address and Port Number using the sockaddr structure. We
+	// only process IPv4 and IPv6 connections here.
+	auto saFam = addr.sa_family;
+	if (saFam == AF_INET) {
+		sockaddr_in *sin4 = reinterpret_cast<sockaddr_in*>(&addr);
+		
+		inet_ntop(AF_INET, &sin4->sin_addr, ip, INET6_ADDRSTRLEN);
+		port = sin4->sin_port;
+	} else if (saFam == AF_INET6) {
+		sockaddr_in6 *sin6 = reinterpret_cast<sockaddr_in6*>(&addr);
+		
+		inet_ntop(AF_INET6, &sin6->sin6_addr, ip, INET6_ADDRSTRLEN);
+		port = sin6->sin6_port;
+	} else {
+		return;
+	}
+	
+	// Map the current ASID and File Descriptor to the Network Target.
+	int sockfd = arguments[0];
+	auto asid_fd_pair = std::make_pair(panda_current_asid(cpu), sockfd);
+	TargetNetwork target(std::string(ip), port);
+	dependency_tracker.networks[asid_fd_pair] = target;
+	
+	// Log connection if this is a source or sink
+	if (isSource(target)) {
+		std::cout << "dependency_network: ***saw connect to source target: \"" 
+			<< target << "\"***" << std::endl;
+	} else if (isSink(target)) {
+		std::cout << "dependency_network: ***saw connect to sink target: \"" 
+			<< target << "\"***" << std::endl;
+	}
 }
 
 std::vector<std::vector<std::string>> parseCSV(const std::string &fileName) {
@@ -272,6 +329,9 @@ bool init_plugin(void *self) {
 	panda_register_callback(self, PANDA_CB_BEFORE_BLOCK_TRANSLATE, pcb);
 	pcb.before_block_exec = on_before_block_execution;
 	panda_register_callback(self, PANDA_CB_BEFORE_BLOCK_EXEC, pcb);
+
+	// Register SysCalls2 Callback Functions
+	PPP_REG_CB("syscalls2", on_sys_socketcall_return, on_socketcall_return);
 	
 	// Print debug info, if available
 	if (dependency_tracker.debug) {

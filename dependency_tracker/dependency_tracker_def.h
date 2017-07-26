@@ -6,6 +6,7 @@
 #include <set>
 #include <string>
 #include <vector>
+#include <utility>
 
 #include "panda/plugin.h"
 #include "panda/plugin_plugin.h"
@@ -24,6 +25,8 @@ extern "C" {
 
 #include "dependency_tracker_targets.h"
 
+typedef std::pair<target_ulong, uint32_t> FD_ASID_Pair;
+
 struct Dependency_Tracker {
 	void *plugin_ptr = nullptr;                          // The plugin pointer
 	target_ulong enableTaintAt = UINT32_MAX;             // I# to enable taint
@@ -33,6 +36,8 @@ struct Dependency_Tracker {
 	std::vector<std::unique_ptr<TargetSink>> sinks;      // Sink Targets
 	
 	std::map<target_ulong, OsiProc> processes;           // { ASID -> Process }
+	std::map<FD_ASID_Pair, TargetNetwork> networks;      // { ASID, FD -> Net }
+	
 };
 
 Dependency_Tracker dependency_tracker;                   // Plugin Reference
@@ -159,6 +164,40 @@ int on_before_block_execution(CPUState *cpu, TranslationBlock *tB);
 /// Zero always.
 /// </returns>
 int on_before_block_translate(CPUState *cpu, target_ulong pc);
+
+/// <summary>
+/// Callback function for the "on_sys_socketcall_return_t" system call. This
+/// function calls the appropriate socket function to handle the socket call.
+/// </summary>
+/// <param name="cpu">
+/// The CPU State pointer.
+/// </param>
+/// <param name="pc">
+/// The program counter.
+/// </param>
+/// <param name="call">
+/// The integer ID of the socket call.
+/// </param>
+/// <param name="args">
+/// The virtual memory address to the start of the arguments.
+/// </param>
+void on_socketcall_return(CPUState *cpu, target_ulong pc, int32_t call,
+		uint32_t args);
+		
+/// <summary>
+/// Callback function for the syscalls2 "on_sys_connect_return_t" event. This
+/// function gets the Network Target associated with the socket file descriptor
+/// argument and current ASID, and inserts the ASID, FD pair into the networks
+/// vector, mapped to the corresponding Network Target.
+/// </summary>
+/// <param name="cpu">
+/// The CPU State pointer.
+/// </param>
+/// <param name="args">
+/// The virtual memory address to the start of the arguments for the connect()
+/// system call.
+/// </param>
+void on_socketcall_connect_return(CPUState *cpu, uint32_t args);
 
 /// <summary>
 /// Parses the specified file, which is assumed to be in CSV format. Returns
