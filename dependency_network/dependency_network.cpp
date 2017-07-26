@@ -14,103 +14,6 @@ bool Dependency_Network_Target::operator!=(
 	return (this->ip != rhs.ip) || (this->port != rhs.port);
 }
 
-int cbf_beforeBlockTranslate(CPUState *cpu, target_ulong pc) {
-	// Enable taint if current instruction is g.t. when we are supposed to
-	// enable taint.
-	int instr = rr_get_guest_instr_count();
-	if (!taint2_enabled() && instr > dependency_network.enableTaintAt) {
-		if (dependency_network.debug) {
-			std::cout << "dependency_network: enabling taint at instruction " 
-				<< instr << "." << std::endl;
-				
-		}
-		
-		taint2_enable_taint();
-	}
-	
-	return 0;
-}
-
-void cbf_socketCallEnter(CPUState *cpu, target_ulong pc, int32_t call,
-		uint32_t args) {
-	
-}
-
-void cbf_socketCallReturn(CPUState *cpu, target_ulong pc, int32_t call,
-		uint32_t args) {
-	if (dependency_network.debug) {
-		std::cout << "dependency_network: socket_call triggered at " << 
-			"instruction " << rr_get_guest_instr_count() << ", call type: " <<
-			call << std::endl;
-	}
-			
-	if (call == SYS_CONNECT) onSocketConnect(cpu, args);
-}
-
-void cbf_pread64Return(CPUState *cpu, target_ulong pc, uint32_t fd,
-		uint32_t buffer, uint32_t count, uint64_t pos) {
-	Dependency_Network_Target target;
-	try {
-		target = targets.at(std::make_pair(panda_current_asid(cpu), fd));
-	} catch (const std::out_of_range &e) {
-		std::cerr << "dependency_network: pread64_return called, but file"
-			<< "descriptor " << fd << " is unknown." << std::endl;
-		return;
-	}
-	
-	if (target == dependency_network.source) {
-		std::cout << "dependency_network: ***saw read return of source " << 
-			"target***" << std::endl;
-		sawReadOfSource = true;
-		
-		labelBufferContents(cpu, buffer, count);
-	} else {
-		if (dependency_network.debug) {
-			std::cout << "dependency_network: saw read of file/socket with " <<
-				"fd: " << fd << std::endl;
-		}
-	}
-}
-
-void cbf_pwrite64Return(CPUState *cpu, target_ulong pc, uint32_t fd,
-		uint32_t buffer, uint32_t count, uint64_t pos) {
-	Dependency_Network_Target target;
-	try {
-		target = targets.at(std::make_pair(panda_current_asid(cpu), fd));
-	} catch (const std::out_of_range &e) {
-		std::cerr << "dependency_network: pwrite64_return called, but file" <<
-			" descriptor " << fd << " is unknown." << std::endl;
-		return;
-	}
-	
-	if (target == dependency_network.sink) {
-		std::cout << "dependency_network: ***saw write return of sink " << 
-			"target***" << std::endl; 
-		sawWriteOfSink = true;
-		
-		int numTainted = queryBufferContents(cpu, buffer, count);
-		std::cout << "dependency_file: " << numTainted << " tainted bytes " <<
-			"written to " << target.ip << "." << std::endl;
-
-		if (numTainted > 0) dependency = true;
-	} else {
-		if (dependency_network.debug) {
-			std::cout << "dependency_network: saw write of file/socket with " 
-				<< "fd: " << fd << std::endl;
-		}
-	}
-}
-
-void cbf_readReturn(CPUState *cpu, target_ulong pc, uint32_t fd, 
-		uint32_t buffer, uint32_t count) {
-	cbf_pread64Return(cpu, pc, fd, buffer, count, 0);
-}
-
-void cbf_writeReturn(CPUState *cpu, target_ulong pc, uint32_t fd, 
-		uint32_t buffer, uint32_t count) {
-	cbf_pwrite64Return(cpu, pc, fd, buffer, count, 0);
-}
-
 template<typename T>
 std::vector<T> getMemoryValues(CPUState *cpu, uint32_t addr, uint32_t size) {
 	std::vector<T> arguments;
@@ -162,7 +65,94 @@ void labelBufferContents(CPUState *cpu, target_ulong vAddr, uint32_t length) {
 	}
 }
 
-void onSocketConnect(CPUState *cpu, uint32_t args) {
+int on_before_block_translate(CPUState *cpu, target_ulong pc) {
+	// Enable taint if current instruction is g.t. when we are supposed to
+	// enable taint.
+	int instr = rr_get_guest_instr_count();
+	if (!taint2_enabled() && instr > dependency_network.enableTaintAt) {
+		if (dependency_network.debug) {
+			std::cout << "dependency_network: enabling taint at instruction " 
+				<< instr << "." << std::endl;
+				
+		}
+		
+		taint2_enable_taint();
+	}
+	
+	return 0;
+}
+
+void on_pread64_return(CPUState *cpu, target_ulong pc, uint32_t fd,
+		uint32_t buffer, uint32_t count, uint64_t pos) {
+	Dependency_Network_Target target;
+	try {
+		target = targets.at(std::make_pair(panda_current_asid(cpu), fd));
+	} catch (const std::out_of_range &e) {
+		std::cerr << "dependency_network: pread64_return called, but file"
+			<< "descriptor " << fd << " is unknown." << std::endl;
+		return;
+	}
+	
+	if (target == dependency_network.source) {
+		std::cout << "dependency_network: ***saw read return of source " << 
+			"target***" << std::endl;
+		sawReadOfSource = true;
+		
+		labelBufferContents(cpu, buffer, count);
+	} else {
+		if (dependency_network.debug) {
+			std::cout << "dependency_network: saw read of file/socket with " <<
+				"fd: " << fd << std::endl;
+		}
+	}
+}
+
+void on_pwrite64_return(CPUState *cpu, target_ulong pc, uint32_t fd,
+		uint32_t buffer, uint32_t count, uint64_t pos) {
+	Dependency_Network_Target target;
+	try {
+		target = targets.at(std::make_pair(panda_current_asid(cpu), fd));
+	} catch (const std::out_of_range &e) {
+		std::cerr << "dependency_network: pwrite64_return called, but file" <<
+			" descriptor " << fd << " is unknown." << std::endl;
+		return;
+	}
+	
+	if (target == dependency_network.sink) {
+		std::cout << "dependency_network: ***saw write return of sink " << 
+			"target***" << std::endl; 
+		sawWriteOfSink = true;
+		
+		int numTainted = queryBufferContents(cpu, buffer, count);
+		std::cout << "dependency_file: " << numTainted << " tainted bytes " <<
+			"written to " << target.ip << "." << std::endl;
+
+		if (numTainted > 0) dependency = true;
+	} else {
+		if (dependency_network.debug) {
+			std::cout << "dependency_network: saw write of file/socket with " 
+				<< "fd: " << fd << std::endl;
+		}
+	}
+}
+
+void on_read_return(CPUState *cpu, target_ulong pc, uint32_t fd, 
+		uint32_t buffer, uint32_t count) {
+	on_pread64_return(cpu, pc, fd, buffer, count, 0);
+}
+
+void on_socketcall_return(CPUState *cpu, target_ulong pc, int32_t call,
+		uint32_t args) {
+	if (dependency_network.debug) {
+		std::cout << "dependency_network: socket_call triggered at " << 
+			"instruction " << rr_get_guest_instr_count() << ", call type: " <<
+			call << std::endl;
+	}
+			
+	if (call == SYS_CONNECT) on_socketcall_connect_return(cpu, args);
+}
+
+void on_socketcall_connect_return(CPUState *cpu, uint32_t args) {
 	std::cout << "dependency_network: socket_connect called at " <<
 		rr_get_guest_instr_count() << "." << std::endl;
 	
@@ -218,6 +208,11 @@ void onSocketConnect(CPUState *cpu, uint32_t args) {
 		std::cout << "***saw connect to sink target***" << std::endl;
 		dependency_network.enableTaintAt = rr_get_guest_instr_count();
 	}
+}
+
+void on_write_return(CPUState *cpu, target_ulong pc, uint32_t fd, 
+		uint32_t buffer, uint32_t count) {
+	on_pwrite64_return(cpu, pc, fd, buffer, count, 0);
 }
 
 int queryBufferContents(CPUState *cpu, target_ulong vAddr, uint32_t length) {
@@ -296,17 +291,15 @@ bool init_plugin(void *self) {
 		dependency_network.debug << std::endl;
 	
 	// Register SysCalls2 Callback Functions
-	PPP_REG_CB("syscalls2", on_sys_socketcall_enter, cbf_socketCallEnter);
-	PPP_REG_CB("syscalls2", on_sys_socketcall_return, cbf_socketCallReturn);
-	PPP_REG_CB("syscalls2", on_sys_pread64_return, cbf_pread64Return);
-	PPP_REG_CB("syscalls2", on_sys_pwrite64_return, cbf_pwrite64Return);
-	PPP_REG_CB("syscalls2", on_sys_read_return, cbf_readReturn);
-	PPP_REG_CB("syscalls2", on_sys_write_return, cbf_writeReturn);
+	PPP_REG_CB("syscalls2", on_sys_socketcall_return, on_socketcall_return);
+	PPP_REG_CB("syscalls2", on_sys_pread64_return, on_pread64_return);
+	PPP_REG_CB("syscalls2", on_sys_pwrite64_return, on_pwrite64_return);
+	PPP_REG_CB("syscalls2", on_sys_read_return, on_read_return);
+	PPP_REG_CB("syscalls2", on_sys_write_return, on_write_return);
 	
-	/// Register the Before Block Execution Functions
+	// Register the Before Block Execution Functions
 	panda_cb pcb;
-	
-	pcb.before_block_translate = cbf_beforeBlockTranslate;
+	pcb.before_block_translate = on_before_block_translate;
 	panda_register_callback(self, PANDA_CB_BEFORE_BLOCK_TRANSLATE, pcb);
 	
 	return true;
