@@ -6,7 +6,6 @@
 #include <set>
 #include <string>
 #include <vector>
-#include <utility>
 
 #include "panda/plugin.h"
 #include "panda/plugin_plugin.h"
@@ -68,8 +67,9 @@ template<typename T>
 std::vector<T> getMemoryValues(CPUState *cpu, uint32_t addr, uint32_t size);
 
 /// <summary>
-/// Returns a string with the filename corresponding to the specified file
-/// descriptor and ASID.
+/// Returns a TargetFile with the file name corresponding to the specified file
+/// descriptor and ASID. If no such file name is found, the TargetFile returned
+/// is invalid.
 /// </summary>
 /// <param name="cpu">
 /// The CPU State pointer.
@@ -82,10 +82,24 @@ std::vector<T> getMemoryValues(CPUState *cpu, uint32_t addr, uint32_t size);
 /// The file descriptor for which the file name is to be fetched.
 /// </param>
 /// <returns>
-/// The string containing the filename. If the file name could not be fetched,
-/// an empty string is returned instead.
+/// The TargetFile containing the file name. If the file name could not be
+/// resolved, the TargetFile returned is invalid.
 /// </returns>
-std::string getFileName(CPUState *cpu, target_ulong asid, uint32_t fd);
+TargetFile getTargetFile(CPUState *cpu, target_ulong asid, uint32_t fd);
+
+/// <summary>
+/// Returns a TargetNetwork with the IP address and port corresponding to the
+/// specified file descriptor and ASID. If no such network target is found, the
+/// TargetNetwork returned is invalid.
+/// </summary>
+/// <param name="asid">
+/// The ASID of the process which owns the network target referenced by the
+/// socket file descriptor.
+/// </param>
+/// <param name="fd">
+/// The file descriptor for which the network target is to be fetched.
+/// </param>
+TargetNetwork getTargetNetwork(target_ulong asid, uint32_t fd);
 
 /// <summary>
 /// Checks if the specified <paramref="target"/> is a sink target.

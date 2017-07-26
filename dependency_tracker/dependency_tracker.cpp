@@ -28,12 +28,12 @@ std::vector<T> getMemoryValues(CPUState *cpu, uint32_t addr, uint32_t size) {
 	return values;
 }
 
-std::string getFileName(CPUState *cpu, target_ulong asid, uint32_t fd) {
+TargetFile getTargetFile(CPUState *cpu, target_ulong asid, uint32_t fd) {
 	if (dependency_tracker.processes.count(asid) > 0) {
 		auto &process = dependency_tracker.processes[asid];
 
 		// Get the file name from osi_linux. If failed, print error and 
-		// continue with excecution.
+		// continue with execution.
 		char *fileNamePtr = osi_linux_fd_to_filename(cpu, &process, fd);
 		if (!fileNamePtr) {
 			if (dependency_tracker.debug) {
@@ -42,12 +42,12 @@ std::string getFileName(CPUState *cpu, target_ulong asid, uint32_t fd) {
 					"name." << std::endl;
 			}
 			
-			return "";
+			return TargetFile();
 		}
 
 		// If file name pointer is not null, the function worked, return file
 		// name as a string.
-		return std::string(fileNamePtr);
+		return TargetFile(std::string(fileNamePtr));
 	} 
 
 	// If this is reached, then ASID is unknown
@@ -56,7 +56,17 @@ std::string getFileName(CPUState *cpu, target_ulong asid, uint32_t fd) {
 			" for fd " << fd << ", because ASID " << asid << " is unknown." <<
 			std::endl;
 	}
-	return "";
+	return TargetFile();
+}
+
+TargetNetwork getTargetNetwork(target_ulong asid, uint32_t fd) {
+	try {
+		return dependency_tracker.networks.at(std::make_pair(asid, fd));
+	} catch (const std::out_of_range &e) {
+		std::cerr << "dependency_tracker: failed to fetch network for fd " <<
+			fd << " and ASID " << asid << "." << std::endl;
+		return TargetNetwork();
+	}
 }
 
 bool isSink(const Target &target) {
@@ -175,10 +185,10 @@ void on_socketcall_connect_return(CPUState *cpu, uint32_t args) {
 	
 	// Log connection if this is a source or sink
 	if (isSource(target)) {
-		std::cout << "dependency_network: ***saw connect to source target: \"" 
+		std::cout << "dependency_tracker: ***saw connect to source target: \"" 
 			<< target << "\"***" << std::endl;
 	} else if (isSink(target)) {
-		std::cout << "dependency_network: ***saw connect to sink target: \"" 
+		std::cout << "dependency_tracker: ***saw connect to sink target: \"" 
 			<< target << "\"***" << std::endl;
 	}
 }
