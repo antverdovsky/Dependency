@@ -38,6 +38,26 @@ struct Dependency_Tracker {
 Dependency_Tracker dependency_tracker;                   // Plugin Reference
 
 /// <summary>
+/// Returns a string with the filename corresponding to the specified file
+/// descriptor and ASID.
+/// </summary>
+/// <param name="cpu">
+/// The CPU State pointer.
+/// </param>
+/// <param name="asid">
+/// The ASID of the process which owns the file referenced by the file
+/// descriptor.
+/// </param>
+/// <param name="fd">
+/// The file descriptor for which the file name is to be fetched.
+/// </param>
+/// <returns>
+/// The string containing the filename. If the file name could not be fetched,
+/// an empty string is returned instead.
+/// </returns>
+std::string getFileName(CPUState *cpu, target_ulong asid, uint32_t fd);
+
+/// <summary>
 /// Taints the contents of the buffer at the specified virtual address and of 
 /// the specified length. This function does nothing if taint2 is not currently
 /// enabled.

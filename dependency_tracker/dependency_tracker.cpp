@@ -5,6 +5,37 @@
 #include <sstream>
 #include <stdexcept>
 
+std::string getFileName(CPUState *cpu, target_ulong asid, uint32_t fd) {
+	if (dependency_tracker.processes.count(asid) > 0) {
+		auto &process = dependency_tracker.processes[asid];
+
+		// Get the file name from osi_linux. If failed, print error and 
+		// continue with excecution.
+		char *fileNamePtr = osi_linux_fd_to_filename(cpu, &process, fd);
+		if (!fileNamePtr) {
+			if (dependency_tracker.debug) {
+				std::cerr << "dependency_tracker: osi_linux_fd_to_filename " <<
+					"failed" << " for fd " << fd << ", unable to get file " <<
+					"name." << std::endl;
+			}
+			
+			return "";
+		}
+
+		// If file name pointer is not null, the function worked, return file
+		// name as a string.
+		return std::string(fileNamePtr);
+	} 
+
+	// If this is reached, then ASID is unknown
+	if (dependency_tracker.debug) {
+		std::cerr << "dependency_tracker: osi_linux_fd_to_filename failed " <<
+			" for fd " << fd << ", because ASID " << asid << " is unknown." <<
+			std::endl;
+	}
+	return "";
+}
+
 int labelBufferContents(CPUState *cpu, target_ulong vAddr, uint32_t length,
 		uint32_t label) {
 	if (!taint2_enabled()) return 0;
