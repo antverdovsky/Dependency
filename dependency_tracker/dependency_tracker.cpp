@@ -171,12 +171,9 @@ void on_pread64_return(CPUState *cpu, target_ulong pc, uint32_t fd,
 	// no target returned is valid, return because we don't know what this file
 	// descriptor corresponds to.
 	Target *target = nullptr;
-	if (tF) 
-		target = &tF;
-	else if (tN) 
-		target = &tN;
-	else
-		return;
+	if (tF)      target = &tF;
+	else if (tN) target = &tN;
+	else         return;
 
 	// Get the pointer to the target source associated with the fetched target
 	TargetSource *targetSource = nullptr;
@@ -201,7 +198,49 @@ void on_pread64_return(CPUState *cpu, target_ulong pc, uint32_t fd,
 	// Output that the target source was seen and tainted, if applicable
 	std::cout << "dependency_tracker: ***saw read of source target: \"" <<
 		*target << "\", tainted " << bytes << " bytes with label " <<
-		targetSource->getIndex() << "." << std::endl;
+		targetSource->getIndex() << "***" << std::endl;
+}
+
+void on_pwrite64_return(CPUState *cpu, target_ulong pc, uint32_t fd,
+		uint32_t buffer, uint32_t count, uint64_t pos) {
+	// For pwrite64 events, we assume that the target being read is a file or a
+	// network, so try finding the TargetFile/TargetNetwork associated with the
+	// file descriptor argument.
+	TargetFile tF = getTargetFile(cpu, panda_current_asid(cpu), fd);
+	TargetNetwork tN = getTargetNetwork(panda_current_asid(cpu), fd);
+	
+	// For each target type, if it is valid, set the target pointer to it. If
+	// no target returned is valid, return because we don't know what this file
+	// descriptor corresponds to.
+	Target *target = nullptr;
+	if (tF)      target = &tF;
+	else if (tN) target = &tN;
+	else         return;
+	
+	// Get the pointer to the target sink associated with the fetched target
+	TargetSink *targetSink = nullptr;
+	try {
+		targetSink = &getTargetSink(*target);
+	} catch (const std::invalid_argument &e) {
+		return;
+	}
+	
+	// Query the buffer contents, add the results to the labeled bytes
+	// property of the source.
+	std::map<uint32_t, uint32_t> bytes = queryBufferContents(
+		cpu, buffer, count);
+	for (auto &it : bytes) {
+		uint32_t source = it.first;
+		uint32_t numTainted = it.second;
+		
+		// Note here that if source D.N.E. in the labeled bytes map, it will
+		// be default constructed with a value of zero.
+		targetSink->getLabeledBytes()[source] += numTainted;
+		
+		std::cout << "dependency_tracker: ***saw write of sink target \"" <<
+			*target << "\", " << numTainted << " bytes written to target " <<
+			"with label " << source << "***" << std::endl;
+	}
 }
 
 void on_read_return(CPUState *cpu, target_ulong pc, uint32_t fd, 
@@ -302,6 +341,11 @@ std::vector<std::vector<std::string>> parseCSV(const std::string &fileName) {
 	return lines;
 }
 
+void on_write_return(CPUState *cpu, target_ulong pc, uint32_t fd, 
+		uint32_t buffer, uint32_t count) {
+	on_pwrite64_return(cpu, pc, fd, buffer, count, 0);
+}
+
 std::vector<std::unique_ptr<Target>> parseTargets(const std::string &file) {
 	std::vector<std::unique_ptr<Target>> targets;
 	std::vector<std::vector<std::string>> lines = parseCSV(file);
@@ -346,9 +390,9 @@ std::vector<std::unique_ptr<Target>> parseTargets(const std::string &file) {
 	return targets;
 }
 
-std::map<uint32_t, std::set<uint32_t>> queryBufferContents(
+std::map<uint32_t, uint32_t> queryBufferContents(
 		CPUState *cpu, target_ulong vAddr, uint32_t length) {
-	std::map<uint32_t, std::set<uint32_t>> map; // { displacement -> labels }
+	std::map<uint32_t, uint32_t> map; // { label -> number of bytes tainted }
 	if (!taint2_enabled()) return map;
 	
 	for (auto i = 0; i < length; ++i) {
@@ -357,9 +401,12 @@ std::map<uint32_t, std::set<uint32_t>> queryBufferContents(
 		hwaddr pAddr = panda_virt_to_phys(cpu, vAddr + i);
 		if (pAddr == (hwaddr)(-1)) continue;
 		
-		// Get the label set for the physical address and add it to the map
-		LabelSetP labelSet = taint2_query_set_ram(pAddr);
-		map[i] = *labelSet;
+		// Get the label set for the physical address and for each label in
+		// the set, increment the number of bytes tainted with it by one.
+		auto labelSet = *taint2_query_set_ram(pAddr);
+		for (auto label : labelSet) {
+			++map[label];
+		}
 	}
 	
 	return map;
@@ -417,6 +464,8 @@ bool init_plugin(void *self) {
 	PPP_REG_CB("syscalls2", on_sys_socketcall_return, on_socketcall_return);
 	PPP_REG_CB("syscalls2", on_sys_pread64_return, on_pread64_return);
 	PPP_REG_CB("syscalls2", on_sys_read_return, on_read_return);
+	PPP_REG_CB("syscalls2", on_sys_pwrite64_return, on_pwrite64_return);
+	PPP_REG_CB("syscalls2", on_sys_write_return, on_write_return);
 	
 	// Print debug info, if available
 	if (dependency_tracker.debug) {

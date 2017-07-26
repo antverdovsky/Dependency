@@ -228,7 +228,7 @@ int on_before_block_translate(CPUState *cpu, target_ulong pc);
 /// The length of the read buffer.
 /// </param>
 /// <param name="pos">
-/// The position from which the file was read.
+/// The position from which the file was read from.
 /// </param>
 void on_pread64_return(CPUState *cpu, target_ulong pc, uint32_t fd,
 		uint32_t buffer, uint32_t count, uint64_t pos);
@@ -254,14 +254,14 @@ void on_pread64_return(CPUState *cpu, target_ulong pc, uint32_t fd,
 /// The length of the read buffer.
 /// </param>
 /// <param name="pos">
-/// The position from which the file was read.
+/// The position from which the file was written to.
 /// </param>
 void on_pwrite64_return(CPUState *cpu, target_ulong pc, uint32_t fd,
 		uint32_t buffer, uint32_t count, uint64_t pos);
 		
 /// <summary>
 /// Callback function for the syscalls2 "on_sys_read_return_t" event. This
-/// function calls the <see cref="on_pwrite64_return"/> function with a zero
+/// function calls the <see cref="on_pread64_return"/> function with a zero
 /// argument for the position parameter.
 /// </summary>
 /// <param name="cpu">
@@ -317,6 +317,29 @@ void on_socketcall_return(CPUState *cpu, target_ulong pc, int32_t call,
 void on_socketcall_connect_return(CPUState *cpu, uint32_t args);
 
 /// <summary>
+/// Callback function for the syscalls2 "on_sys_write_return_t" event. This
+/// function calls the <see cref="on_pwrite64_return"/> function with a zero
+/// argument for the position parameter.
+/// </summary>
+/// <param name="cpu">
+/// The CPU state pointer.
+/// </param>
+/// <param name="pc">
+/// The program counter.
+/// </param>
+/// <param name="fd">
+/// The file descriptor.
+/// </param>
+/// <param name="buffer">
+/// The virtual memory address of the read buffer.
+/// </param>
+/// <param name="count">
+/// The length of the write buffer.
+/// </param>
+void on_write_return(CPUState *cpu, target_ulong pc, uint32_t fd, 
+		uint32_t buffer, uint32_t count);
+
+/// <summary>
 /// Parses the specified file, which is assumed to be in CSV format. Returns
 /// a vector containing the vectors of the strings parsed on each line.
 /// </summary>
@@ -357,10 +380,9 @@ std::vector<std::unique_ptr<Target>> parseTargets(const std::string &file);
 /// The length of the buffer, in bytes.
 /// </param>
 /// <returns>
-/// A map of the displacement from the <param ref="vAddr"> to the labels
-/// applied at that address.
+/// A map of each label found to the number of bytes tainted by that label.
 /// </returns>
-std::map<uint32_t, std::set<uint32_t>> queryBufferContents(
+std::map<uint32_t, uint32_t> queryBufferContents(
 		CPUState *cpu, target_ulong vAddr, uint32_t length);
 
 /// <summary>

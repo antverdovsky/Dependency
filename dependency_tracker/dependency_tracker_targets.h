@@ -110,7 +110,7 @@ public:
 	/// <returns>
 	/// A reference to the value.
 	/// </returns>
-	std::map<size_t, uint32_t>& getLabeledBytes();
+	std::map<uint32_t, uint32_t>& getLabeledBytes();
 
 	/// <summary>
 	/// Gets a constant reference to the target attached to this sink.
@@ -128,7 +128,7 @@ protected:
 	std::unique_ptr<Target> target;            // Target attached to this sink
 	size_t index;                              // Index of this in sources list
 
-	std::map<size_t, uint32_t> labeledBytes;   // Map of source target index to
+	std::map<uint32_t, uint32_t> labeledBytes; // Map of source target index to
 	                                           // tainted bytes of said source
 	                                           // written to this.
 };

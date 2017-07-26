@@ -43,7 +43,7 @@ const size_t& TargetSink::getIndex() const {
 	return this->index;
 }
 
-std::map<size_t, uint32_t>& TargetSink::getLabeledBytes() {
+std::map<uint32_t, uint32_t>& TargetSink::getLabeledBytes() {
 	return this->labeledBytes;
 }
 
