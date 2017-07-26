@@ -57,6 +57,26 @@ std::string getFileName(CPUState *cpu, target_ulong asid, uint32_t fd) {
 	return "";
 }
 
+bool isSink(const Target &target) {
+	for (const auto &sink : dependency_tracker.sinks) {
+		if (sink->getTarget() == target) {
+			return true;
+		}
+	}
+	
+	return false;
+}
+
+bool isSource(const Target &target) {
+	for (const auto &source : dependency_tracker.sources) {
+		if (source->getTarget() == target) {
+			return true;
+		}
+	}
+	
+	return false;
+}
+
 int labelBufferContents(CPUState *cpu, target_ulong vAddr, uint32_t length,
 		uint32_t label) {
 	if (!taint2_enabled()) return 0;

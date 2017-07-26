@@ -83,6 +83,28 @@ std::vector<T> getMemoryValues(CPUState *cpu, uint32_t addr, uint32_t size);
 std::string getFileName(CPUState *cpu, target_ulong asid, uint32_t fd);
 
 /// <summary>
+/// Checks if the specified <paramref="target"/> is a sink target.
+/// </summary>
+/// <param name="target">
+/// The target to be checked.
+/// </param>
+/// <returns>
+/// True if <paramref="target"/> is a sink, false otherwise.
+/// </returns>
+bool isSink(const Target &target);
+
+/// <summary>
+/// Checks if the specified <paramref="target"/> is a source target.
+/// </summary>
+/// <param name="target">
+/// The target to be checked.
+/// </param>
+/// <returns>
+/// True if <paramref="target"/> is a source, false otherwise.
+/// </returns>
+bool isSource(const Target &target);
+
+/// <summary>
 /// Taints the contents of the buffer at the specified virtual address and of 
 /// the specified length. This function does nothing if taint2 is not currently
 /// enabled.

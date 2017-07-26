@@ -51,6 +51,10 @@ const Target& TargetSink::getTarget() const {
 	return *this->target;
 }
 
+TargetFile::TargetFile() : TargetFile("") {
+
+}
+
 TargetFile::TargetFile(const std::string &name) {
 	this->fileName = name;
 }
@@ -72,6 +76,10 @@ bool TargetFile::operator==(const Target &rhs) const {
 
 bool TargetFile::operator!=(const Target &rhs) const {
 	return !(this->operator==(rhs));
+}
+
+TargetNetwork::TargetNetwork() : TargetNetwork("", 0) {
+
 }
 
 TargetNetwork::TargetNetwork(const std::string &ip, const unsigned int &port) {

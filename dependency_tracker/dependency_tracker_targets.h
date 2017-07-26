@@ -196,6 +196,11 @@ protected:
 class TargetFile : public Target {
 public:
 	/// <summary>
+	/// Creates a new, invalid TargetFile.
+	/// </summary>
+	TargetFile();
+
+	/// <summary>
 	/// Creates a new trackable file target with the specified name.
 	/// </summary>
 	/// <param name="name">
@@ -252,6 +257,11 @@ protected:
 /// </summary>
 class TargetNetwork : public Target {
 public:
+	/// <summary>
+	/// Creates a new, invalid TargetNetwork.
+	/// </summary>
+	TargetNetwork();
+
 	/// <summary>
 	/// Creates a new trackable network target with the specified name.
 	/// </summary>
