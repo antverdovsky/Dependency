@@ -12,17 +12,21 @@
 class Target {
 public:
 	/// <summary>
-	/// Creates a new target.
-	/// </summary>
-	Target();
-
-	/// <summary>
 	/// Simple method which returns a string representation of this Target.
 	/// </summary>
 	/// <returns>
-	/// The string in format: "Base Target".
+	/// The string in format: "base".
 	/// </returns>
-	virtual std::string toString() const;
+	virtual std::string toString() const = 0;
+	
+	/// <summary>
+	/// Returns true if this Target is valid. The concept of validity is left
+	/// up to interpretation for the derived type.
+	/// </summary>
+	/// <returns>
+	/// True if the Target is valid, false otherwise.
+	/// </returns>
+	virtual explicit operator bool() const = 0;
 	
 	/// <summary>
 	/// Compares the specified Target instance for equality to this.
@@ -47,6 +51,11 @@ public:
 	/// True if the instances are inequivalent, false otherwise.
 	/// </returns>
 	virtual bool operator!=(const Target &rhs) const;
+protected:
+	/// <summary>
+	/// Creates a new target.
+	/// </summary>
+	Target() = default;
 };
 
 /// <summary>
@@ -195,12 +204,21 @@ public:
 	TargetFile(const std::string &name);
 
 	/// <summary>
-	/// Simple method which returns a string representation of this Target.
+	/// Simple method which returns the file name string of this File Target.
 	/// </summary>
 	/// <returns>
-	/// The string in format: "File Target; File: \"$fileName$\"".
+	/// The file name of this File Target.
 	/// </returns>
 	virtual std::string toString() const override;
+	
+	/// <summary>
+	/// Checks if this File Target is valid. A file target is considered valid
+	/// if the file name is non-empty.
+	/// </summary>
+	/// <returns>
+	/// True if the file name of this File Target is non-empty.
+	/// </returns>
+	virtual explicit operator bool() const override;
 	
 	/// <summary>
 	/// Compares the specified Target instance for equality to this.
@@ -246,12 +264,22 @@ public:
 	TargetNetwork(const std::string &ip, const unsigned int &port);
 
 	/// <summary>
-	/// Simple method which returns a string representation of this Target.
+	/// Simple method which returns a string representation of this Network 
+	/// Target.
 	/// </summary>
 	/// <returns>
-	/// The string in format: "Network Target; IP: \"$ip$\", Port: $port$".
+	/// The string in format: "$ip$::$port$".
 	/// </returns>
 	virtual std::string toString() const override;
+	
+	/// <summary>
+	/// Checks if this Network Target is valid. A network target is considered
+	/// valid if the IP address string is non-empty.
+	/// </summary>
+	/// <returns>
+	/// True if the IP address of this Network Target is non-empty.
+	/// </returns>
+	virtual explicit operator bool() const override;
 
 	/// <summary>
 	/// Compares the specified Target instance for equality to this.

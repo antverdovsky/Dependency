@@ -2,14 +2,6 @@
 
 #include <typeinfo>
 
-Target::Target() {
-	
-}
-
-std::string Target::toString() const {
-	return "Base Target";
-}
-
 bool Target::operator==(const Target &rhs) const {
 	return typeid(*this) == typeid(rhs);
 }
@@ -64,7 +56,11 @@ TargetFile::TargetFile(const std::string &name) {
 }
 
 std::string TargetFile::toString() const {
-	return ("File Target; File: \"" + this->fileName + "\"");
+	return this->fileName;
+}
+
+TargetFile::operator bool() const {
+	return !this->fileName.empty();
 }
 
 bool TargetFile::operator==(const Target &rhs) const {
@@ -84,8 +80,11 @@ TargetNetwork::TargetNetwork(const std::string &ip, const unsigned int &port) {
 }
 
 std::string TargetNetwork::toString() const {
-	return ("Network Target; IP : \"" + this->ip + 
-		"\", Port: " + std::to_string(this->port) + ".");
+	return (this->ip + "::" + std::to_string(this->port));
+}
+
+TargetNetwork::operator bool() const {
+	return !this->ip.empty();
 }
 
 bool TargetNetwork::operator==(const Target &rhs) const {
