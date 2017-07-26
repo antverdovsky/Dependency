@@ -69,24 +69,42 @@ TargetNetwork getTargetNetwork(target_ulong asid, uint32_t fd) {
 	}
 }
 
-bool isSink(const Target &target) {
+TargetSink& getTargetSink(const Target &target) {
 	for (const auto &sink : dependency_tracker.sinks) {
 		if (sink->getTarget() == target) {
-			return true;
+			return *sink;
 		}
 	}
 	
-	return false;
+	throw std::invalid_argument("no sink exists for specified target");
+}
+
+TargetSource& getTargetSource(const Target &target) {
+	for (const auto &source : dependency_tracker.sources) {
+		if (source->getTarget() == target) {
+			return *source;
+		}
+	}
+	
+	throw std::invalid_argument("no source exists for specified target");
+}
+
+bool isSink(const Target &target) {
+	try {
+		getTargetSink(target);
+		return true;
+	} catch (const std::invalid_argument &e) {
+		return false;
+	}
 }
 
 bool isSource(const Target &target) {
-	for (const auto &source : dependency_tracker.sources) {
-		if (source->getTarget() == target) {
-			return true;
-		}
+	try {
+		getTargetSource(target);
+		return true;
+	} catch (const std::invalid_argument &e) {
+		return false;
 	}
-	
-	return false;
 }
 
 int labelBufferContents(CPUState *cpu, target_ulong vAddr, uint32_t length,

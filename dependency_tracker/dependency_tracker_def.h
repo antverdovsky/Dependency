@@ -102,6 +102,34 @@ TargetFile getTargetFile(CPUState *cpu, target_ulong asid, uint32_t fd);
 TargetNetwork getTargetNetwork(target_ulong asid, uint32_t fd);
 
 /// <summary>
+/// Gets the sink associated with the specified <param ref="target"/>.
+/// </summary>
+/// <param name="target">
+/// The target for which the sink target is to be fetched.
+/// </param>
+/// <returns>
+/// The reference to the target sink.
+/// </returns>
+/// <exception cref="std::invalid_argument">
+/// Thrown if no sink target is associated with the specified target.
+/// </exception>
+TargetSink& getTargetSink(const Target &target); 
+
+/// <summary>
+/// Gets the source associated with the specified <param ref="target"/>.
+/// </summary>
+/// <param name="target">
+/// The target for which the source target is to be fetched.
+/// </param>
+/// <returns>
+/// The reference to the target source.
+/// </returns>
+/// <exception cref="std::invalid_argument">
+/// Thrown if no source target is associated with the specified target.
+/// </exception>
+TargetSource& getTargetSource(const Target &target); 
+
+/// <summary>
 /// Checks if the specified <paramref="target"/> is a sink target.
 /// </summary>
 /// <param name="target">
@@ -178,6 +206,55 @@ int on_before_block_execution(CPUState *cpu, TranslationBlock *tB);
 /// Zero always.
 /// </returns>
 int on_before_block_translate(CPUState *cpu, target_ulong pc);
+
+/// <summary>
+/// Callback function for the syscalls2 "on_sys_pread64_return_t" event. This
+/// function taints the specified buffer 
+/// </summary>
+/// <param name="cpu">
+/// The CPU state pointer.
+/// </param>
+/// <param name="pc">
+/// The program counter.
+/// </param>
+/// <param name="fd">
+/// The file descriptor.
+/// </param>
+/// <param name="buffer">
+/// The virtual memory address of the read buffer.
+/// </param>
+/// <param name="count">
+/// The length of the read buffer.
+/// </param>
+/// <param name="pos">
+/// The position from which the file was read.
+/// </param>
+void on_pread64_return(CPUState *cpu, target_ulong pc, uint32_t fd,
+		uint32_t buffer, uint32_t count, uint64_t pos);
+
+/// <summary>
+/// Callback function for the syscalls2 "on_sys_pwrite64_return_t" event.
+/// </summary>
+/// <param name="cpu">
+/// The CPU state pointer.
+/// </param>
+/// <param name="pc">
+/// The program counter.
+/// </param>
+/// <param name="fd">
+/// The file descriptor.
+/// </param>
+/// <param name="buffer">
+/// The virtual memory address of the read buffer.
+/// </param>
+/// <param name="count">
+/// The length of the read buffer.
+/// </param>
+/// <param name="pos">
+/// The position from which the file was read.
+/// </param>
+void on_pwrite64_return(CPUState *cpu, target_ulong pc, uint32_t fd,
+		uint32_t buffer, uint32_t count, uint64_t pos);
 
 /// <summary>
 /// Callback function for the "on_sys_socketcall_return_t" system call. This
