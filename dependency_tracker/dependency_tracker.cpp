@@ -63,8 +63,11 @@ TargetNetwork getTargetNetwork(target_ulong asid, uint32_t fd) {
 	try {
 		return dependency_tracker.networks.at(std::make_pair(asid, fd));
 	} catch (const std::out_of_range &e) {
-		std::cerr << "dependency_tracker: failed to fetch network for fd " <<
-			fd << " and ASID " << asid << "." << std::endl;
+		if (dependency_tracker.debug) {		
+			std::cerr << "dependency_tracker: failed to fetch network for fd " 
+				<< fd << " and ASID " << asid << "." << std::endl;
+		}
+
 		return TargetNetwork();
 	}
 }
@@ -154,6 +157,56 @@ int on_before_block_translate(CPUState *cpu, target_ulong pc) {
 	}
 	
 	return 0;
+}
+
+void on_pread64_return(CPUState *cpu, target_ulong pc, uint32_t fd,
+		uint32_t buffer, uint32_t count, uint64_t pos) {
+	// For pread64 events, we assume that the target being read is a file or a
+	// network, so try finding the TargetFile/TargetNetwork associated with the
+	// file descriptor argument.
+	TargetFile tF = getTargetFile(cpu, panda_current_asid(cpu), fd);
+	TargetNetwork tN = getTargetNetwork(panda_current_asid(cpu), fd);
+	
+	// For each target type, if it is valid, set the target pointer to it. If
+	// no target returned is valid, return because we don't know what this file
+	// descriptor corresponds to.
+	Target *target = nullptr;
+	if (tF) 
+		target = &tF;
+	else if (tN) 
+		target = &tN;
+	else
+		return;
+
+	// Get the pointer to the target source associated with the fetched target
+	TargetSource *targetSource = nullptr;
+	try {
+		targetSource = &getTargetSource(*target);
+	} catch (const std::invalid_argument &e) {
+		return;
+	}
+
+	// Get the true buffer length. For files, this is stored in the the EAX
+	// register, but for networks the buffer count provided is accurate.
+	uint32_t bufferLength = count;
+	if (tF) 
+		bufferLength = ((CPUArchState*)cpu->env_ptr)->regs[0];
+	
+	// Label the buffer contents, add number of tainted bytes to the target
+	// source.
+	uint32_t bytes = labelBufferContents(cpu, buffer, bufferLength, 
+		targetSource->getIndex());
+	targetSource->getLabeledBytes() += bytes;
+	
+	// Output that the target source was seen and tainted, if applicable
+	std::cout << "dependency_tracker: ***saw read of source target: \"" <<
+		*target << "\", tainted " << bytes << " bytes with label " <<
+		targetSource->getIndex() << "." << std::endl;
+}
+
+void on_read_return(CPUState *cpu, target_ulong pc, uint32_t fd, 
+		uint32_t buffer, uint32_t count) {
+	on_pread64_return(cpu, pc, fd, buffer, count, 0);
 }
 
 void on_socketcall_return(CPUState *cpu, target_ulong pc, int32_t call,
@@ -337,6 +390,8 @@ bool init_plugin(void *self) {
 		"sinks file name");
 	dependency_tracker.debug = panda_parse_bool_opt(args, "debug", 
 		"debug mode");
+	dependency_tracker.enableTaintAt = panda_parse_uint64_opt(args, "taintAt",
+		1, "enable taint at instruction number");
 
 	// Read the sources and sinks files, parse data into targets and add to
 	// plugin structure.
@@ -360,6 +415,8 @@ bool init_plugin(void *self) {
 
 	// Register SysCalls2 Callback Functions
 	PPP_REG_CB("syscalls2", on_sys_socketcall_return, on_socketcall_return);
+	PPP_REG_CB("syscalls2", on_sys_pread64_return, on_pread64_return);
+	PPP_REG_CB("syscalls2", on_sys_read_return, on_read_return);
 	
 	// Print debug info, if available
 	if (dependency_tracker.debug) {

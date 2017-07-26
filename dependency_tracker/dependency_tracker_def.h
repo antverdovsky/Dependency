@@ -28,7 +28,7 @@ typedef std::pair<target_ulong, uint32_t> FD_ASID_Pair;
 
 struct Dependency_Tracker {
 	void *plugin_ptr = nullptr;                          // The plugin pointer
-	target_ulong enableTaintAt = UINT32_MAX;             // I# to enable taint
+	uint64_t enableTaintAt = 1;                          // I# to enable taint
 	bool debug = false;                                  // Print debug info?
 	
 	std::vector<std::unique_ptr<TargetSource>> sources;  // Source Targets
@@ -209,7 +209,8 @@ int on_before_block_translate(CPUState *cpu, target_ulong pc);
 
 /// <summary>
 /// Callback function for the syscalls2 "on_sys_pread64_return_t" event. This
-/// function taints the specified buffer 
+/// function taints the specified buffer, if the target associated with the
+/// specified file descriptor is a target source.
 /// </summary>
 /// <param name="cpu">
 /// The CPU state pointer.
@@ -233,7 +234,9 @@ void on_pread64_return(CPUState *cpu, target_ulong pc, uint32_t fd,
 		uint32_t buffer, uint32_t count, uint64_t pos);
 
 /// <summary>
-/// Callback function for the syscalls2 "on_sys_pwrite64_return_t" event.
+/// Callback function for the syscalls2 "on_sys_pwrite64_return_t" event. This
+/// function queries the specified buffer, if the target associated with the
+/// specified file descriptor is a target sink.
 /// </summary>
 /// <param name="cpu">
 /// The CPU state pointer.
@@ -255,6 +258,29 @@ void on_pread64_return(CPUState *cpu, target_ulong pc, uint32_t fd,
 /// </param>
 void on_pwrite64_return(CPUState *cpu, target_ulong pc, uint32_t fd,
 		uint32_t buffer, uint32_t count, uint64_t pos);
+		
+/// <summary>
+/// Callback function for the syscalls2 "on_sys_read_return_t" event. This
+/// function calls the <see cref="on_pwrite64_return"/> function with a zero
+/// argument for the position parameter.
+/// </summary>
+/// <param name="cpu">
+/// The CPU state pointer.
+/// </param>
+/// <param name="pc">
+/// The program counter.
+/// </param>
+/// <param name="fd">
+/// The file descriptor.
+/// </param>
+/// <param name="buffer">
+/// The virtual memory address of the read buffer.
+/// </param>
+/// <param name="count">
+/// The length of the read buffer.
+/// </param>
+void on_read_return(CPUState *cpu, target_ulong pc, uint32_t fd, 
+		uint32_t buffer, uint32_t count);
 
 /// <summary>
 /// Callback function for the "on_sys_socketcall_return_t" system call. This
