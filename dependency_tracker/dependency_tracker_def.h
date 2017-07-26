@@ -38,6 +38,31 @@ struct Dependency_Tracker {
 Dependency_Tracker dependency_tracker;                   // Plugin Reference
 
 /// <summary>
+/// Returns a vector of size <paramref="size"/> containing the values of T read 
+/// from the virtual memory address <paramref="addr"/>. This method assumes 
+/// that the values in memory are adjacent to each other (in an array).
+/// </summary>
+/// <typeparam name="T">
+/// The type of values to be read from the memory address.
+/// </typeparam>
+/// <param name="cpu">
+/// The CPU State pointer.
+/// </param>
+/// <param name="addr">
+/// The virtual memory address to the start of the T values.
+/// </param>
+/// <param name="size">
+/// The number of arguments to be read in. This is equivalent to the number of
+/// elements returned in the vector.
+/// </param>
+/// <returns>
+/// The vector of size <paramref="size"/> containing the values fetched from
+/// <paramref="addr"/>.
+/// </returns>
+template<typename T>
+std::vector<T> getMemoryValues(CPUState *cpu, uint32_t addr, uint32_t size);
+
+/// <summary>
 /// Returns a string with the filename corresponding to the specified file
 /// descriptor and ASID.
 /// </summary>
