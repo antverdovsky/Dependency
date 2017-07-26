@@ -185,20 +185,20 @@ void on_pread64_return(CPUState *cpu, target_ulong pc, uint32_t fd,
 
 	// Get the true buffer length. For files, this is stored in the the EAX
 	// register, but for networks the buffer count provided is accurate.
-	uint32_t bufferLength = count;
+	uint32_t actualCount = count;
 	if (tF) 
-		bufferLength = ((CPUArchState*)cpu->env_ptr)->regs[0];
+		actualCount = ((CPUArchState*)cpu->env_ptr)->regs[0];
 	
 	// Label the buffer contents, add number of tainted bytes to the target
 	// source.
-	uint32_t bytes = labelBufferContents(cpu, buffer, bufferLength, 
+	uint32_t bytes = labelBufferContents(cpu, buffer, actualCount, 
 		targetSource->getIndex());
 	targetSource->getLabeledBytes() += bytes;
 	
 	// Output that the target source was seen and tainted, if applicable
 	std::cout << "dependency_tracker: ***saw read of source target: \"" <<
-		*target << "\", tainted " << bytes << " bytes with label " <<
-		targetSource->getIndex() << "***" << std::endl;
+		*target << "\", tainted " << bytes << "/" << actualCount <<
+		" bytes with label " << targetSource->getIndex() << "***" << std::endl;
 }
 
 void on_pwrite64_return(CPUState *cpu, target_ulong pc, uint32_t fd,
@@ -238,8 +238,9 @@ void on_pwrite64_return(CPUState *cpu, target_ulong pc, uint32_t fd,
 		targetSink->getLabeledBytes()[source] += numTainted;
 		
 		std::cout << "dependency_tracker: ***saw write of sink target \"" <<
-			*target << "\", " << numTainted << " bytes written to target " <<
-			"with label " << source << "***" << std::endl;
+			*target << "\", " << numTainted << "/" << count << 
+			" bytes written to target " << "with label " << source << "***" << 
+			std::endl;
 	}
 }
 
@@ -253,6 +254,9 @@ void on_socketcall_return(CPUState *cpu, target_ulong pc, int32_t call,
 	switch (call) {
 	case SYS_CONNECT:
 		return on_socketcall_connect_return(cpu, args);
+	case SYS_RECV:
+	case SYS_RECVFROM:
+		return on_socketcall_recv_return(cpu, args);
 	}
 }
 
@@ -303,6 +307,50 @@ void on_socketcall_connect_return(CPUState *cpu, uint32_t args) {
 	}
 }
 
+void on_socketcall_recv_return(CPUState *cpu, uint32_t args) {
+	// Get the arguments from the args virtual memory
+	auto arguments = getMemoryValues<uint32_t>(cpu, args, 3);
+	
+	// Retrieve the socket file descriptor, buffer address and buffer length
+	// from the arguments.
+	uint32_t sockfd = arguments[0];
+	uint32_t buffer = arguments[1];
+	uint32_t length = arguments[2];
+	
+	// We are expecting a Source Network Target here, so we only have to try to
+	// get a Network Target.
+	TargetNetwork tN = getTargetNetwork(panda_current_asid(cpu), sockfd);
+	
+	// Check that the target network is valid, if not continue
+	Target *target = nullptr;
+	if (tN)      target = &tN;
+	else         return;
+	
+	// Get the pointer to the target source associated with the fetched target
+	TargetSource *targetSource = nullptr;
+	try {
+		targetSource = &getTargetSource(*target);
+	} catch (const std::invalid_argument &e) {
+		return;
+	}
+	
+	// Label the buffer contents, add number of tainted bytes to the target
+	// source.
+	uint32_t bytes = labelBufferContents(cpu, buffer, length, 
+		targetSource->getIndex());
+	targetSource->getLabeledBytes() += bytes;
+	
+	// Output that the target source was seen and tainted, if applicable
+	std::cout << "dependency_tracker: ***saw recv of source target: \"" <<
+		*target << "\", tainted " << bytes << "/" << length << 
+		" bytes with label " << targetSource->getIndex() << "***" << std::endl;
+}
+
+void on_write_return(CPUState *cpu, target_ulong pc, uint32_t fd, 
+		uint32_t buffer, uint32_t count) {
+	on_pwrite64_return(cpu, pc, fd, buffer, count, 0);
+}
+
 std::vector<std::vector<std::string>> parseCSV(const std::string &fileName) {
 	std::vector<std::vector<std::string>> lines;
 
@@ -339,11 +387,6 @@ std::vector<std::vector<std::string>> parseCSV(const std::string &fileName) {
 	}
 
 	return lines;
-}
-
-void on_write_return(CPUState *cpu, target_ulong pc, uint32_t fd, 
-		uint32_t buffer, uint32_t count) {
-	on_pwrite64_return(cpu, pc, fd, buffer, count, 0);
 }
 
 std::vector<std::unique_ptr<Target>> parseTargets(const std::string &file) {
