@@ -30,6 +30,7 @@ struct Dependency_Tracker {
 	void *plugin_ptr = nullptr;                          // The plugin pointer
 	uint64_t enableTaintAt = 1;                          // I# to enable taint
 	bool debug = false;                                  // Print debug info?
+	bool logErrors = false;                              // Print errors?
 	
 	std::vector<std::unique_ptr<TargetSource>> sources;  // Source Targets
 	std::vector<std::unique_ptr<TargetSink>> sinks;      // Sink Targets

@@ -36,22 +36,22 @@ TargetFile getTargetFile(CPUState *cpu, target_ulong asid, uint32_t fd) {
 		// continue with execution.
 		char *fileNamePtr = osi_linux_fd_to_filename(cpu, &process, fd);
 		if (!fileNamePtr) {
-			if (dependency_tracker.debug) {
+			if (dependency_tracker.logErrors) {
 				std::cerr << "dependency_tracker: osi_linux_fd_to_filename " <<
 					"failed" << " for fd " << fd << ", unable to get file " <<
 					"name." << std::endl;
 			}
-			
+
 			return TargetFile();
 		}
 
 		// If file name pointer is not null, the function worked, return file
 		// name as a string.
 		return TargetFile(std::string(fileNamePtr));
-	} 
+	}
 
 	// If this is reached, then ASID is unknown
-	if (dependency_tracker.debug) {
+	if (dependency_tracker.logErrors) {
 		std::cerr << "dependency_tracker: osi_linux_fd_to_filename failed " <<
 			" for fd " << fd << ", because ASID " << asid << " is unknown." <<
 			std::endl;
@@ -63,7 +63,7 @@ TargetNetwork getTargetNetwork(target_ulong asid, uint32_t fd) {
 	try {
 		return dependency_tracker.networks.at(std::make_pair(asid, fd));
 	} catch (const std::out_of_range &e) {
-		if (dependency_tracker.debug) {		
+		if (dependency_tracker.logErrors) {		
 			std::cerr << "dependency_tracker: failed to fetch network for fd " 
 				<< fd << " and ASID " << asid << "." << std::endl;
 		}
@@ -175,6 +175,12 @@ void on_pread64_return(CPUState *cpu, target_ulong pc, uint32_t fd,
 	else if (tN) target = &tN;
 	else         return;
 
+	// Log that a recognizable target was seen
+	if (dependency_tracker.debug) {
+		std::cout << "dependency_tracker: saw read of target \"" << *target << 
+			"\"." << std::endl;
+	}
+
 	// Get the pointer to the target source associated with the fetched target
 	TargetSource *targetSource = nullptr;
 	try {
@@ -216,6 +222,12 @@ void on_pwrite64_return(CPUState *cpu, target_ulong pc, uint32_t fd,
 	if (tF)      target = &tF;
 	else if (tN) target = &tN;
 	else         return;
+
+	// Log that a recognizable target was seen
+	if (dependency_tracker.debug) {
+		std::cout << "dependency_tracker: saw write of target \"" << *target << 
+			"\"." << std::endl;
+	}
 	
 	// Get the pointer to the target sink associated with the fetched target
 	TargetSink *targetSink = nullptr;
@@ -299,6 +311,12 @@ void on_socketcall_connect_return(CPUState *cpu, uint32_t args) {
 	auto asid_fd_pair = std::make_pair(panda_current_asid(cpu), sockfd);
 	TargetNetwork target(std::string(ip), port);
 	dependency_tracker.networks[asid_fd_pair] = target;
+
+	// Log that a recognizable target was seen
+	if (dependency_tracker.debug) {
+		std::cout << "dependency_tracker: saw connect to target \"" << target 
+			<< "\"." << std::endl;
+	}
 	
 	// Log connection if this is a source or sink
 	if (isSource(target)) {
@@ -328,6 +346,12 @@ void on_socketcall_recv_return(CPUState *cpu, uint32_t args) {
 	Target *target = nullptr;
 	if (tN)      target = &tN;
 	else         return;
+
+	// Log that a recognizable target was seen
+	if (dependency_tracker.debug) {
+		std::cout << "dependency_tracker: saw recv from target \"" << *target 
+			<< "\"." << std::endl;
+	}
 	
 	// Get the pointer to the target source associated with the fetched target
 	TargetSource *targetSource = nullptr;
@@ -367,6 +391,12 @@ void on_socketcall_send_return(CPUState *cpu, uint32_t args) {
 	Target *target = nullptr;
 	if (tN)      target = &tN;
 	else         return;
+
+		// Log that a recognizable target was seen
+	if (dependency_tracker.debug) {
+		std::cout << "dependency_tracker: saw send to target \"" << *target << 
+			"\"." << std::endl;
+	}
 
 	// Get the pointer to the target source associated with the fetched target
 	TargetSink *targetSink = nullptr;
@@ -539,7 +569,9 @@ bool init_plugin(void *self) {
 	sinksFile = panda_parse_string_opt(args, "sinks", "sinks",
 		"sinks file name");
 	dependency_tracker.debug = panda_parse_bool_opt(args, "debug", 
-		"debug mode");
+		"debug mode?");
+	dependency_tracker.logErrors = panda_parse_bool_opt(args, "logFail",
+		"log failed target fetches?");
 	dependency_tracker.enableTaintAt = panda_parse_uint64_opt(args, "taintAt",
 		1, "enable taint at instruction number");
 
@@ -572,11 +604,18 @@ bool init_plugin(void *self) {
 	
 	// Print debug info, if available
 	if (dependency_tracker.debug) {
+		uint64_t taintAt = dependency_tracker.enableTaintAt;
+
 		std::cout << "dependency_tracker: debug mode enabled. " << std::endl;
 		std::cout << "dependency_tracker: found " << sourcesPtrs.size() << 
 			" sources." << std::endl;
 		std::cout << "dependency_tracker: found " << sinksPtrs.size() << 
 			" sinks." << std::endl;
+		std::cout << "dependency_tracker: log errors? " << 
+			(dependency_tracker.logErrors ? "yes." : "no.") << std::endl;
+		std::cout << "dependency_tracker: enabling taint2 at instruction : " <<
+			((taintAt == (uint64_t)(-1)) ? "never" : std::to_string(taintAt)) 
+			<< "." << std::endl;
 	}
 
 	return true;
