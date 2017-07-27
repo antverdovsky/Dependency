@@ -627,15 +627,27 @@ bool init_plugin(void *self) {
 }
 
 void uninit_plugin(void *self) {
-	std::cout << "Goodbye World from Dependency_Tracker Plugin." << std::endl;
+	// Foreach target sink, output the name of the target, and for each source
+	// which wrote to that sink, output the name of the source and the number 
+	// of tainted bytes written.
+	for (auto &sink : dependency_tracker.sinks) {
+		std::cout << "Target: \"" << sink->getTarget() << "\":" << std::endl;
 
-	std::cout << "Sources: " << std::endl;
-	for (auto &src : dependency_tracker.sources) { 
-		std::cout << "\t" << src->getTarget().toString() << std::endl;
-	}
+		auto &labeledBytes = sink->getLabeledBytes();
+		for (auto &it : labeledBytes) {
+			// Get the source which wrote to this sink, skip if nothing from 
+			// that source was written to the sink.
+			uint32_t source = it.first;
+			uint32_t numTainted = it.second;
+			if (numTainted <= 0) continue;
 
-	std::cout << "Sinks: " << std::endl;
-	for (auto &sink : dependency_tracker.sinks) { 
-		std::cout << "\t" << sink->getTarget().toString() << std::endl;
+			// Get the source target and output how many of its tainted bytes
+			// ended up in this sink.
+			TargetSource &targetSource = *dependency_tracker.sources[source];
+			const Target &target = targetSource.getTarget();
+			std::cout << "\t";
+			std::cout << "\"" << target << "\": " << numTainted << " tainted "
+				<< "bytes" << std::endl;
+		}
 	}
 }
