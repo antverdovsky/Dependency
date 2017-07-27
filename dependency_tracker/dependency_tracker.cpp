@@ -493,10 +493,21 @@ std::map<uint32_t, uint32_t> queryBufferContents(
 		hwaddr pAddr = panda_virt_to_phys(cpu, vAddr + i);
 		if (pAddr == (hwaddr)(-1)) continue;
 		
+		// Initialize the label set to store the sources which tainted this
+		// byte. By default, set each source index to a negative number to
+		// indicate no source wrote anything to this byte.
+		uint32_t labelSetSize = taint2_query_ram(pAddr);
+		uint32_t labelSet[labelSetSize];
+		for (auto i = 0; i < labelSetSize; ++i) labelSet[i] = -1;
+
 		// Get the label set for the physical address and for each label in
 		// the set, increment the number of bytes tainted with it by one.
-		auto labelSet = *taint2_query_set_ram(pAddr);
+		taint2_query_set_ram(pAddr, labelSet);
 		for (auto label : labelSet) {
+			// Occurs if taint2_query_set_ram did not write to this element of
+			// the labelSet array.
+			if (label == (uint32_t)(-1)) continue;
+
 			++map[label];
 		}
 	}
