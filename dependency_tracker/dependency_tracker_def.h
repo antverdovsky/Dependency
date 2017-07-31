@@ -428,7 +428,8 @@ std::map<uint32_t, uint32_t> queryBufferContents(
 extern "C" bool init_plugin(void *self);
 
 /// <summary>
-/// Destroys this plugin.
+/// Destroys this plugin. Outputs information about which sources were tainted
+/// and the dependencies between any source and sink targets.
 /// </summary>
 /// <param name="self">
 /// The plugin pointer passed in from PANDA.

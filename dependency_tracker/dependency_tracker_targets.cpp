@@ -20,6 +20,10 @@ std::ostream& operator<<(std::ostream &stream, const Target &target) {
 TargetSink::TargetSink(std::unique_ptr<Target> target, const size_t &index) {
 	this->target = std::move(target);
 	this->index = index;
+	
+	this->totalBytes = 0;
+	this->totalTaintBytes = 0;
+	this->totalWrites = 0;
 }
 
 const size_t& TargetSink::getIndex() const {
@@ -71,6 +75,9 @@ TargetSource::TargetSource(std::unique_ptr<Target> target,
 	this->index = index;
 	
 	this->labeledBytes = 0;
+	
+	this->totalBytes = 0;
+	this->totalReads = 0;
 }
 
 const size_t& TargetSource::getIndex() const {
