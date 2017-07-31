@@ -2,6 +2,7 @@
 
 #include <fstream>
 #include <iostream>
+#include <math.h>
 #include <sstream>
 #include <stdexcept>
 
@@ -122,7 +123,7 @@ int labelBufferContents(CPUState *cpu, target_ulong vAddr, uint32_t length,
 		if (pAddr == (hwaddr)(-1)) continue;
 		
 		// Else, taint at the physical address specified
-		taint2_label_ram(pAddr, label);
+		taint2_label_ram_additive(pAddr, label);
 		++bytesTainted;
 	}
 	
@@ -194,12 +195,19 @@ void on_pread64_return(CPUState *cpu, target_ulong pc, uint32_t fd,
 	uint32_t actualCount = count;
 	if (tF) 
 		actualCount = ((CPUArchState*)cpu->env_ptr)->regs[0];
+		
+	// Skip if nothing is actually being read from the file
+	if (actualCount <= 0) return;
 	
 	// Label the buffer contents, add number of tainted bytes to the target
 	// source.
 	uint32_t bytes = labelBufferContents(cpu, buffer, actualCount, 
 		targetSource->getIndex());
 	targetSource->getLabeledBytes() += bytes;
+	
+	// Notify Target Source of the read
+	targetSource->getTotalBytes() += actualCount;
+	targetSource->getTotalReads()++;
 	
 	// Output that the target source was seen and tainted, if applicable
 	std::cout << "dependency_tracker: ***saw read of source target: \"" <<
@@ -237,10 +245,14 @@ void on_pwrite64_return(CPUState *cpu, target_ulong pc, uint32_t fd,
 		return;
 	}
 	
+	// Skip if nothing is actually being written to the file
+	if (count <= 0) return;
+	
 	// Query the buffer contents, add the results to the labeled bytes
 	// property of the sink.
 	std::map<uint32_t, uint32_t> bytes = queryBufferContents(
 		cpu, buffer, count);
+	uint32_t totalTaintBytes = 0;
 	for (auto &it : bytes) {
 		uint32_t source = it.first;
 		uint32_t numTainted = it.second;
@@ -248,12 +260,18 @@ void on_pwrite64_return(CPUState *cpu, target_ulong pc, uint32_t fd,
 		// Note here that if source D.N.E. in the labeled bytes map, it will
 		// be default constructed with a value of zero.
 		targetSink->getLabeledBytes()[source] += numTainted;
+		totalTaintBytes += numTainted;
 		
 		std::cout << "dependency_tracker: ***saw write of sink target \"" <<
 			*target << "\", " << numTainted << "/" << count << 
 			" bytes written to target with label " << source << "***" << 
 			std::endl;
 	}
+	
+	// Notify Target Sink of the write
+	targetSink->getTotalBytes() += count;
+	targetSink->getTotalTaintBytes() += totalTaintBytes;
+	targetSink->getTotalWrites()++;
 }
 
 void on_read_return(CPUState *cpu, target_ulong pc, uint32_t fd, 
@@ -338,6 +356,9 @@ void on_socketcall_recv_return(CPUState *cpu, uint32_t args) {
 	uint32_t buffer = arguments[1];
 	uint32_t length = arguments[2];
 	
+	// Skip if nothing is actually being recieved
+	if (length <= 0) return;
+	
 	// We are expecting a Source Network Target here, so we only have to try to
 	// get a Network Target.
 	TargetNetwork tN = getTargetNetwork(panda_current_asid(cpu), sockfd);
@@ -367,6 +388,10 @@ void on_socketcall_recv_return(CPUState *cpu, uint32_t args) {
 		targetSource->getIndex());
 	targetSource->getLabeledBytes() += bytes;
 	
+	// Notify Target Source of the read
+	targetSource->getTotalBytes() += length;
+	targetSource->getTotalReads()++;
+	
 	// Output that the target source was seen and tainted, if applicable
 	std::cout << "dependency_tracker: ***saw recv of source target: \"" <<
 		*target << "\", tainted " << bytes << "/" << length << 
@@ -382,6 +407,9 @@ void on_socketcall_send_return(CPUState *cpu, uint32_t args) {
 	uint32_t sockfd = arguments[0];
 	uint32_t buffer = arguments[1];
 	uint32_t length = arguments[2];
+	
+	// Skip if nothing is actually being sent
+	if (length <= 0) return;
 	
 	// We are expecting a Sink Network Target here, so we only have to try to
 	// get a Network Target.
@@ -410,6 +438,7 @@ void on_socketcall_send_return(CPUState *cpu, uint32_t args) {
 	// property of the sink.
 	std::map<uint32_t, uint32_t> bytes = queryBufferContents(
 		cpu, buffer, length);
+	uint32_t totalTaintBytes = 0;
 	for (auto &it : bytes) {
 		uint32_t source = it.first;
 		uint32_t numTainted = it.second;
@@ -417,12 +446,18 @@ void on_socketcall_send_return(CPUState *cpu, uint32_t args) {
 		// Note here that if source D.N.E. in the labeled bytes map, it will
 		// be default constructed with a value of zero.
 		targetSink->getLabeledBytes()[source] += numTainted;
+		totalTaintBytes += numTainted;
 		
 		std::cout << "dependency_tracker: ***saw send of sink target \"" <<
 			*target << "\", " << numTainted << "/" << length << 
 			" bytes written to target with label " << source << "***" << 
 			std::endl;
 	}
+	
+	// Notify Target Sink of the write
+	targetSink->getTotalBytes() += length;
+	targetSink->getTotalTaintBytes() += totalTaintBytes;
+	targetSink->getTotalWrites()++;
 }
 
 void on_write_return(CPUState *cpu, target_ulong pc, uint32_t fd, 
@@ -627,11 +662,28 @@ bool init_plugin(void *self) {
 }
 
 void uninit_plugin(void *self) {
+	// Foreach target source, output the name of the target and how many of its
+	// bytes were tainted.
+	for (auto &source : dependency_tracker.sources) {
+		std::cout << "Source: \"" << source->getTarget() << "\": labeled " <<
+			source->getLabeledBytes() << "/" << source->getTotalBytes() <<
+			std::endl;
+	}
+	
+	std::cout << std::endl;
+	
 	// Foreach target sink, output the name of the target, and for each source
 	// which wrote to that sink, output the name of the source and the number 
 	// of tainted bytes written.
 	for (auto &sink : dependency_tracker.sinks) {
-		std::cout << "Target: \"" << sink->getTarget() << "\":" << std::endl;
+		// Skip this sink if no tainted bytes were written to it.
+		if (sink->getTotalTaintBytes() < 1) continue;
+		
+		std::cout << "Sink: \"" << sink->getTarget() << "\":" << std::endl;
+		std::cout << "\t" << "Total Writes: " << sink->getTotalWrites() <<
+			std::endl;
+		std::cout << "\t" << "Total Bytes Written: " << 
+			sink->getTotalBytes() << std::endl;
 
 		auto &labeledBytes = sink->getLabeledBytes();
 		for (auto &it : labeledBytes) {
@@ -640,14 +692,15 @@ void uninit_plugin(void *self) {
 			uint32_t source = it.first;
 			uint32_t numTainted = it.second;
 			if (numTainted <= 0) continue;
-
+			
 			// Get the source target and output how many of its tainted bytes
 			// ended up in this sink.
 			TargetSource &targetSource = *dependency_tracker.sources[source];
 			const Target &target = targetSource.getTarget();
 			std::cout << "\t";
-			std::cout << "\"" << target << "\": " << numTainted << " tainted "
-				<< "bytes" << std::endl;
+			std::cout << "Source: " << "\"" << target << "\": " << 
+				numTainted << "/" << sink->getTotalBytes() << 
+				" tainted bytes written to this." << std::endl;
 		}
 	}
 }
