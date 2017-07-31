@@ -201,6 +201,10 @@ void on_pread64_return(CPUState *cpu, target_ulong pc, uint32_t fd,
 		targetSource->getIndex());
 	targetSource->getLabeledBytes() += bytes;
 	
+	// Notify Target Source of the read
+	targetSource->getTotalBytes() += actualCount;
+	targetSource->getTotalReads()++;
+	
 	// Output that the target source was seen and tainted, if applicable
 	std::cout << "dependency_tracker: ***saw read of source target: \"" <<
 		*target << "\", tainted " << bytes << "/" << actualCount <<
@@ -241,6 +245,7 @@ void on_pwrite64_return(CPUState *cpu, target_ulong pc, uint32_t fd,
 	// property of the sink.
 	std::map<uint32_t, uint32_t> bytes = queryBufferContents(
 		cpu, buffer, count);
+	uint32_t totalTaintBytes = 0;
 	for (auto &it : bytes) {
 		uint32_t source = it.first;
 		uint32_t numTainted = it.second;
@@ -248,12 +253,18 @@ void on_pwrite64_return(CPUState *cpu, target_ulong pc, uint32_t fd,
 		// Note here that if source D.N.E. in the labeled bytes map, it will
 		// be default constructed with a value of zero.
 		targetSink->getLabeledBytes()[source] += numTainted;
+		totalTaintBytes += numTainted;
 		
 		std::cout << "dependency_tracker: ***saw write of sink target \"" <<
 			*target << "\", " << numTainted << "/" << count << 
 			" bytes written to target with label " << source << "***" << 
 			std::endl;
 	}
+	
+	// Notify Target Sink of the write
+	targetSink->getTotalBytes() += count;
+	targetSink->getTotalTaintBytes() += totalTaintBytes;
+	targetSink->getTotalWrites()++;
 }
 
 void on_read_return(CPUState *cpu, target_ulong pc, uint32_t fd, 
@@ -367,6 +378,10 @@ void on_socketcall_recv_return(CPUState *cpu, uint32_t args) {
 		targetSource->getIndex());
 	targetSource->getLabeledBytes() += bytes;
 	
+	// Notify Target Source of the read
+	targetSource->getTotalBytes() += length;
+	targetSource->getTotalReads()++;
+	
 	// Output that the target source was seen and tainted, if applicable
 	std::cout << "dependency_tracker: ***saw recv of source target: \"" <<
 		*target << "\", tainted " << bytes << "/" << length << 
@@ -410,6 +425,7 @@ void on_socketcall_send_return(CPUState *cpu, uint32_t args) {
 	// property of the sink.
 	std::map<uint32_t, uint32_t> bytes = queryBufferContents(
 		cpu, buffer, length);
+	uint32_t totalTaintBytes = 0;
 	for (auto &it : bytes) {
 		uint32_t source = it.first;
 		uint32_t numTainted = it.second;
@@ -417,12 +433,18 @@ void on_socketcall_send_return(CPUState *cpu, uint32_t args) {
 		// Note here that if source D.N.E. in the labeled bytes map, it will
 		// be default constructed with a value of zero.
 		targetSink->getLabeledBytes()[source] += numTainted;
+		totalTaintBytes += numTainted;
 		
 		std::cout << "dependency_tracker: ***saw send of sink target \"" <<
 			*target << "\", " << numTainted << "/" << length << 
 			" bytes written to target with label " << source << "***" << 
 			std::endl;
 	}
+	
+	// Notify Target Sink of the write
+	targetSink->getTotalBytes() += length;
+	targetSink->getTotalTaintBytes() += totalTaintBytes;
+	targetSink->getTotalWrites()++;
 }
 
 void on_write_return(CPUState *cpu, target_ulong pc, uint32_t fd, 

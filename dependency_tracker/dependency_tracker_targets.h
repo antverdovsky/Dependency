@@ -111,6 +111,16 @@ public:
 	/// A reference to the value.
 	/// </returns>
 	std::map<uint32_t, uint32_t>& getLabeledBytes();
+	
+	/// <summary>
+	/// Returns a constant reference to the map which maps the source target 
+	/// index to how many tainted bytes from said source were written to this 
+	/// sink target.
+	/// </summary>
+	/// <returns>
+	/// A constant reference to the value.
+	/// </returns>
+	const std::map<uint32_t, uint32_t>& getLabeledBytes() const;
 
 	/// <summary>
 	/// Gets a constant reference to the target attached to this sink.
@@ -119,6 +129,57 @@ public:
 	/// The constant reference to the target.
 	/// </returns>
 	const Target& getTarget() const;
+	
+	/// <summary>
+	/// Returns a reference to the number of bytes written to this sink.
+	/// </summary>
+	/// <returns>
+	/// The reference to the number of bytes.
+	/// </returns>
+	uint32_t& getTotalBytes();
+	
+	/// <summary>
+	/// Returns a constant reference to the number bytes written to this sink.
+	/// </summary>
+	/// <returns>
+	/// The constant reference to the number of bytes.
+	/// </returns>
+	const uint32_t& getTotalBytes() const;
+	
+	/// <summary>
+	/// Returns a reference to the number of tainted bytes written to this 
+	/// sink.
+	/// </summary>
+	/// <returns>
+	/// The reference to the number of tainted bytes.
+	/// </returns>
+	uint32_t& getTotalTaintBytes();
+	
+	/// <summary>
+	/// Returns a constant reference to the number of tainted bytes written to 
+	/// this sink.
+	/// </summary>
+	/// <returns>
+	/// The constant reference to the number of tainted bytes.
+	/// </returns>
+	const uint32_t& getTotalTaintBytes() const;
+	
+	/// <summary>
+	/// Returns a reference to the number of times this sink was written to.
+	/// </summary>
+	/// <returns>
+	/// The reference to the number of times.
+	/// </returns>
+	uint32_t& getTotalWrites();
+	
+	/// <summary>
+	/// Returns a constant reference to the number of times this sink was 
+	/// written to.
+	/// </summary>
+	/// <returns>
+	/// The constant reference to the number of times.
+	/// </returns>
+	const uint32_t& getTotalWrites() const;
 
 	/// <summary>
 	/// Assignment of Target Source instances is forbidden.
@@ -131,6 +192,10 @@ protected:
 	std::map<uint32_t, uint32_t> labeledBytes; // Map of source target index to
 	                                           // tainted bytes of said source
 	                                           // written to this.
+	
+	uint32_t totalBytes;                       // # of bytes written to
+	uint32_t totalTaintBytes;                  // # of tainted bytes written to
+	uint32_t totalWrites;                      // # of times written to
 };
 
 /// <summary>
@@ -170,6 +235,16 @@ public:
 	/// A reference to the value.
 	/// </returns>
 	uint32_t& getLabeledBytes();
+	
+	/// <summary>
+	/// Returns a constant reference to the number of labeled bytes of this 
+	/// target. This should be set when any data of this source target is 
+	/// labeled.
+	/// </summary>
+	/// <returns>
+	/// A constant reference to the value.
+	/// </returns>
+	const uint32_t& getLabeledBytes() const;
 
 	/// <summary>
 	/// Gets a constant reference to the target attached to this sink.
@@ -178,6 +253,40 @@ public:
 	/// The constant reference to the target.
 	/// </returns>
 	const Target& getTarget() const;
+	
+	/// <summary>
+	/// Returns a reference to the number of bytes read from this source.
+	/// </summary>
+	/// <returns>
+	/// The reference to the number of bytes.
+	/// </returns>
+	uint32_t& getTotalBytes();
+	
+	/// <summary>
+	/// Returns a constant reference to the number bytes read from this 
+	/// source.
+	/// </summary>
+	/// <returns>
+	/// The constant reference to the number of bytes.
+	/// </returns>
+	const uint32_t& getTotalBytes() const;
+	
+	/// <summary>
+	/// Returns a reference to the number of times this source was read from.
+	/// </summary>
+	/// <returns>
+	/// The reference to the number of times.
+	/// </returns>
+	uint32_t& getTotalReads();
+	
+	/// <summary>
+	/// Returns a constant reference to the number of times this source was 
+	/// read from.
+	/// </summary>
+	/// <returns>
+	/// The constant reference to the number of times.
+	/// </returns>
+	const uint32_t& getTotalReads() const;
 
 	/// <summary>
 	/// Assignment of Target Source instances is forbidden.
@@ -187,7 +296,10 @@ protected:
 	std::unique_ptr<Target> target;        // The target attached to this src
 	size_t index;                          // Index of this in sources vector
 
-	uint32_t labeledBytes;                 // Number of tainted bytes of this
+	uint32_t labeledBytes;                 // # of tainted bytes read from
+	
+	uint32_t totalBytes;                   // # of bytes read from
+	uint32_t totalReads;                   // # of times read from
 };
 
 /// <summary>
