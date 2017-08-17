@@ -124,6 +124,26 @@ const uint32_t& TargetSource::getTotalReads() const {
 
 /******************************* TARGET  FILE *******************************/
 
+TargetFile TargetFile::getTargetFile(ASID_Process_Map &procMap, CPUState *cpu,
+		target_ulong asid, uint32_t fd) {
+	// Unable to find ASID in the ASID process map
+	if (procMap.count(asid) < 1) {
+		throw std::invalid_argument("asid " + std::to_string(asid) + 
+			" not found in asid_process map");
+	}
+
+	// Get the file name from osi_linux, throw exception if failed
+	auto &process = procMap.at(asid);
+	char *fileNamePtr = osi_linux_fd_to_filename(cpu, &process, fd);
+	if (!fileNamePtr) {
+		throw std::invalid_argument("osi_linux failed to fetch file name for "
+			"asid " + std::to_string(asid) + ", fd " + std::to_string(fd));
+	}
+
+	// Return Target File with the name of the file
+	return TargetFile(std::string(fileNamePtr));
+}
+
 TargetFile::TargetFile() : TargetFile("") {
 
 }
@@ -155,6 +175,15 @@ bool TargetFile::operator!=(const Target &rhs) const {
 
 /****************************** TARGET NETWORK ******************************/
 
+TargetNetwork TargetNetwork::getTargetNetwork(target_ulong asid, uint32_t fd) {
+	try {
+		return dependency_tracker.networks.at(std::make_pair(asid, fd));
+	} catch (const std::out_of_range &e) {
+		throw std::invalid_argument("no network target exists for asid " +
+			std::to_string(asid) + ", fd " + std::to_string(fd));
+	}
+}
+
 TargetNetwork::TargetNetwork() : TargetNetwork("", 0) {
 
 }
@@ -183,6 +212,12 @@ bool TargetNetwork::operator!=(const Target &rhs) const {
 	return !(this->operator==(rhs));
 }
 
+FD_ASID_Pair_Network_Map& getNetworkMap() {
+	static FD_ASID_Pair_Network_Map map;
+
+	return map;
+}
+
 /****************************** TARGET NETWORK ******************************/
 
 template<typename T>
@@ -204,50 +239,6 @@ std::vector<T> getMemoryValues(CPUState *cpu, uint32_t addr, uint32_t size) {
 	}
 	
 	return values;
-}
-
-TargetFile getTargetFile(CPUState *cpu, target_ulong asid, uint32_t fd) {
-	if (dependency_tracker.processes.count(asid) > 0) {
-		auto &process = dependency_tracker.processes[asid];
-
-		// Get the file name from osi_linux. If failed, print error and 
-		// continue with execution.
-		char *fileNamePtr = osi_linux_fd_to_filename(cpu, &process, fd);
-		if (!fileNamePtr) {
-			if (dependency_tracker.logErrors) {
-				std::cerr << "dependency_tracker: osi_linux_fd_to_filename " <<
-					"failed" << " for fd " << fd << ", unable to get file " <<
-					"name." << std::endl;
-			}
-
-			return TargetFile();
-		}
-
-		// If file name pointer is not null, the function worked, return file
-		// name as a string.
-		return TargetFile(std::string(fileNamePtr));
-	}
-
-	// If this is reached, then ASID is unknown
-	if (dependency_tracker.logErrors) {
-		std::cerr << "dependency_tracker: osi_linux_fd_to_filename failed " <<
-			" for fd " << fd << ", because ASID " << asid << " is unknown." <<
-			std::endl;
-	}
-	return TargetFile();
-}
-
-TargetNetwork getTargetNetwork(target_ulong asid, uint32_t fd) {
-	try {
-		return dependency_tracker.networks.at(std::make_pair(asid, fd));
-	} catch (const std::out_of_range &e) {
-		if (dependency_tracker.logErrors) {		
-			std::cerr << "dependency_tracker: failed to fetch network for fd " 
-				<< fd << " and ASID " << asid << "." << std::endl;
-		}
-
-		return TargetNetwork();
-	}
 }
 
 TargetSink& getTargetSink(const Target &target) {
@@ -342,8 +333,10 @@ void on_pread64_return(CPUState *cpu, target_ulong pc, uint32_t fd,
 	// For pread64 events, we assume that the target being read is a file or a
 	// network, so try finding the TargetFile/TargetNetwork associated with the
 	// file descriptor argument.
-	TargetFile tF = getTargetFile(cpu, panda_current_asid(cpu), fd);
-	TargetNetwork tN = getTargetNetwork(panda_current_asid(cpu), fd);
+	TargetFile tF = TargetFile::getTargetFile(dependency_tracker.processes, 
+		cpu, panda_current_asid(cpu), fd);
+	TargetNetwork tN = TargetNetwork::getTargetNetwork(panda_current_asid(cpu),
+		fd);
 	
 	// For each target type, if it is valid, set the target pointer to it. If
 	// no target returned is valid, return because we don't know what this file
@@ -397,8 +390,10 @@ void on_pwrite64_return(CPUState *cpu, target_ulong pc, uint32_t fd,
 	// For pwrite64 events, we assume that the target being read is a file or a
 	// network, so try finding the TargetFile/TargetNetwork associated with the
 	// file descriptor argument.
-	TargetFile tF = getTargetFile(cpu, panda_current_asid(cpu), fd);
-	TargetNetwork tN = getTargetNetwork(panda_current_asid(cpu), fd);
+	TargetFile tF = TargetFile::getTargetFile(dependency_tracker.processes, 
+		cpu, panda_current_asid(cpu), fd);
+	TargetNetwork tN = TargetNetwork::getTargetNetwork(panda_current_asid(cpu),
+		fd);
 	
 	// For each target type, if it is valid, set the target pointer to it. If
 	// no target returned is valid, return because we don't know what this file
@@ -538,7 +533,8 @@ void on_socketcall_recv_return(CPUState *cpu, uint32_t args) {
 	
 	// We are expecting a Source Network Target here, so we only have to try to
 	// get a Network Target.
-	TargetNetwork tN = getTargetNetwork(panda_current_asid(cpu), sockfd);
+	TargetNetwork tN = TargetNetwork::getTargetNetwork(panda_current_asid(cpu),
+		fd);
 	
 	// Check that the target network is valid, if not continue
 	Target *target = nullptr;
@@ -590,7 +586,8 @@ void on_socketcall_send_return(CPUState *cpu, uint32_t args) {
 	
 	// We are expecting a Sink Network Target here, so we only have to try to
 	// get a Network Target.
-	TargetNetwork tN = getTargetNetwork(panda_current_asid(cpu), sockfd);
+	TargetNetwork tN = TargetNetwork::getTargetNetwork(panda_current_asid(cpu),
+		fd);
 
 	// Check that the target network is valid, if not continue
 	Target *target = nullptr;

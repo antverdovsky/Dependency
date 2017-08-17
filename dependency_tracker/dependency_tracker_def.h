@@ -22,6 +22,11 @@ extern "C" {
 	#include "taint2/taint2_ext.h"
 }
 
+typedef std::pair<target_ulong, uint32_t> FD_ASID_Pair;
+
+typedef std::map<target_ulong, OsiProc> ASID_Process_Map;
+typedef std::map<FD_ASID_Pair, TargetNetwork> FD_ASID_Pair_Network_Map;
+
 /// <summary>
 /// Structure which represents a trackable target.
 /// </summary>
@@ -324,6 +329,34 @@ protected:
 class TargetFile : public Target {
 public:
 	/// <summary>
+	/// Returns a TargetFile with the file name corresponding to the specified 
+	/// file descriptor and ASID. If no such file name is found, an 
+	/// invalid_argument exception is raised.
+	/// </summary>
+	/// <param name="procMap">
+	/// The map of the ASIDs of the guest to the processes of the guest.
+	/// </param>
+	/// <param name="cpu">
+	/// The CPU State pointer.
+	/// </param>
+	/// <param name="asid">
+	/// The ASID of the process which owns the file referenced by the file
+	/// descriptor. This ASID should be a key contained within the map argument.
+	/// </param>
+	/// <param name="fd">
+	/// The file descriptor for which the file name is to be fetched.
+	/// </param>
+	/// <returns>
+	/// The TargetFile containing the file name.
+	/// </returns>
+	/// <exception cref="std::invalid_argument">
+	/// Thrown if no file target could be retrieved for the specified ASID and
+	/// File Descriptor combination.
+	/// </exception>
+	static TargetFile getTargetFile(ASID_Process_Map &procMap, CPUState *cpu, 
+			target_ulong asid, uint32_t fd);
+
+	/// <summary>
 	/// Creates a new, invalid TargetFile.
 	/// </summary>
 	TargetFile();
@@ -386,6 +419,27 @@ protected:
 class TargetNetwork : public Target {
 public:
 	/// <summary>
+	/// Returns a TargetNetwork with the IP address and port corresponding to 
+	/// the specified file descriptor and ASID. If no such network target is 
+	/// found, an invalid_argument exception is raised.
+	/// </summary>
+	/// <param name="asid">
+	/// The ASID of the process which owns the network target referenced by the
+	/// socket file descriptor.
+	/// </param>
+	/// <param name="fd">
+	/// The file descriptor for which the network target is to be fetched.
+	/// </param>
+	/// <returns>
+	/// The network target.
+	/// </returns>
+	/// <exception cref="std::invalid_argument">
+	/// Thrown if no file target could be retrieved for the specified ASID and
+	/// File Descriptor combination.
+	/// </exception>
+	static TargetNetwork getTargetNetwork(target_ulong asid, uint32_t fd);
+
+	/// <summary>
 	/// Creates a new, invalid TargetNetwork.
 	/// </summary>
 	TargetNetwork();
@@ -443,11 +497,18 @@ public:
 	/// </returns>
 	virtual bool operator!=(const Target &rhs) const override;
 protected:
+	/// <summary>
+	/// Returns a map of the file descriptor + ASID pair to the network target
+	/// associated with the pair.
+	/// </summary>
+	/// <returns>
+	/// The reference to the map.
+	/// </returns>
+	static FD_ASID_Pair_Network_Map& getNetworkMap();
+
 	std::string ip;                            // The IP Address of the Target
 	unsigned short port;                       // The Port of the Target
 };
-
-typedef std::pair<target_ulong, uint32_t> FD_ASID_Pair;
 
 struct Dependency_Tracker {
 	void *plugin_ptr = nullptr;                          // The plugin pointer
@@ -458,7 +519,7 @@ struct Dependency_Tracker {
 	std::vector<std::unique_ptr<TargetSource>> sources;  // Source Targets
 	std::vector<std::unique_ptr<TargetSink>> sinks;      // Sink Targets
 	
-	std::map<target_ulong, OsiProc> processes;           // { ASID -> Process }
+	ASID_Process_Map processes;           // { ASID -> Process }
 	std::map<FD_ASID_Pair, TargetNetwork> networks;      // { ASID, FD -> Net }
 	
 };
@@ -489,41 +550,6 @@ Dependency_Tracker dependency_tracker;                   // Plugin Reference
 /// </returns>
 template<typename T>
 std::vector<T> getMemoryValues(CPUState *cpu, uint32_t addr, uint32_t size);
-
-/// <summary>
-/// Returns a TargetFile with the file name corresponding to the specified file
-/// descriptor and ASID. If no such file name is found, the TargetFile returned
-/// is invalid.
-/// </summary>
-/// <param name="cpu">
-/// The CPU State pointer.
-/// </param>
-/// <param name="asid">
-/// The ASID of the process which owns the file referenced by the file
-/// descriptor.
-/// </param>
-/// <param name="fd">
-/// The file descriptor for which the file name is to be fetched.
-/// </param>
-/// <returns>
-/// The TargetFile containing the file name. If the file name could not be
-/// resolved, the TargetFile returned is invalid.
-/// </returns>
-TargetFile getTargetFile(CPUState *cpu, target_ulong asid, uint32_t fd);
-
-/// <summary>
-/// Returns a TargetNetwork with the IP address and port corresponding to the
-/// specified file descriptor and ASID. If no such network target is found, the
-/// TargetNetwork returned is invalid.
-/// </summary>
-/// <param name="asid">
-/// The ASID of the process which owns the network target referenced by the
-/// socket file descriptor.
-/// </param>
-/// <param name="fd">
-/// The file descriptor for which the network target is to be fetched.
-/// </param>
-TargetNetwork getTargetNetwork(target_ulong asid, uint32_t fd);
 
 /// <summary>
 /// Gets the sink associated with the specified <param ref="target"/>.
