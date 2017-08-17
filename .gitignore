@@ -50,3 +50,7 @@
 .nfs*
 
 # End of https://www.gitignore.io/api/c++,linux
+
+# ignore .vscode
+dependency_tracker/.vscode
+
